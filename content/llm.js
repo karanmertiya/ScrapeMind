@@ -19,31 +19,33 @@ function detectPlatform() {
 // ── Selector configs per platform ──────────────────────────────
 const CONFIGS = {
   chatgpt: {
-    // Each assistant turn container
+    // Each assistant turn container (stable selector since 2023)
     turnSelector:  '[data-message-author-role="assistant"]',
     // The rendered markdown inside
-    textSelector:  '.markdown, .prose',
+    textSelector:  '.markdown.prose, .markdown, .prose, [class*="prose"]',
     // Fallback: whole turn
     fallback:      '[data-message-author-role="assistant"]'
   },
   gemini: {
-    turnSelector:  'model-response, .model-response',
-    textSelector:  '.response-content, .markdown, .content-text, p',
-    fallback:      'model-response, .model-response'
+    // model-response is the web component; message-content is an inner element
+    turnSelector:  'model-response, .model-response, message-content.model-response-text, .response-container',
+    textSelector:  '.response-content, .markdown, .content-text, [class*="response-text"], p',
+    fallback:      'model-response, .model-response, .response-container'
   },
   claude: {
-    turnSelector:  '[data-is-streaming="false"] .font-claude-message, .font-claude-message',
+    // font-claude-message has been stable; data-is-streaming guards in-progress turns
+    turnSelector:  '[data-is-streaming="false"] .font-claude-message, .font-claude-message, [data-testid="claude-response"]',
     textSelector:  null,  // use the element itself
-    fallback:      '.font-claude-message'
+    fallback:      '.font-claude-message, [data-testid="claude-response"]'
   },
   perplexity: {
-    turnSelector:  '.prose, [data-testid="answer-text"], .answer-content',
+    turnSelector:  '[data-testid="answer-text"], .prose, .answer-content, [class*="answer"]',
     textSelector:  null,
-    fallback:      '.prose'
+    fallback:      '.prose, [data-testid="answer-text"]'
   },
   copilot: {
-    turnSelector:  '[class*="response"], cib-message[source="bot"]',
-    textSelector:  'cib-message-group, .content',
+    turnSelector:  'cib-message[source="bot"], cib-chat-turn[source="bot"], [class*="response"][class*="bot"]',
+    textSelector:  'cib-message-group, .content, [class*="message-body"]',
     fallback:      'cib-message[source="bot"]'
   }
 };
@@ -102,10 +104,18 @@ function scrape(mode = 'last') {
 
 function extractText(el, childSelector) {
   if (!el) return '';
-  // If a child selector is provided, prefer that subtree
+  // If child selector(s) provided, try each one in order and return first match
   if (childSelector) {
-    const child = el.querySelector(childSelector);
-    if (child) return child.innerText || child.textContent || '';
+    const selectors = childSelector.split(',').map(s => s.trim());
+    for (const sel of selectors) {
+      try {
+        const child = el.querySelector(sel);
+        if (child) {
+          const text = child.innerText || child.textContent || '';
+          if (text.trim()) return text;
+        }
+      } catch { /* invalid selector — skip */ }
+    }
   }
   return el.innerText || el.textContent || '';
 }

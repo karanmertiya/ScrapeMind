@@ -70,7 +70,7 @@ async function getPageInfo(tabId) {
 
     if (isListPage && listId) {
       const info = await fetchPlaylistMeta(listId);
-      return { type: 'yt_playlist', listId, ...info };
+      return { type: 'yt_playlist', listId, title: info.title, ...info };
     }
 
     if (videoId) {
@@ -172,7 +172,7 @@ async function scrapeYTPlaylist(tabId, playlistId, videoIds) {
     // If videoIds not provided, fetch from playlist page
     if (!videoIds?.length) {
       const meta = await fetchPlaylistMeta(playlistId);
-    console.log(`[ScrapeMind] Playlist meta: title="${meta.title}", videoIds=${meta.videoIds?.length}`);
+      console.log(`[ScrapeMind] Playlist meta: title="${meta.title}", videoIds=${meta.videoIds?.length}`);
       videoIds = meta.videoIds || [];
     }
 
@@ -216,7 +216,8 @@ async function scrapeYTPlaylist(tabId, playlistId, videoIds) {
 
 async function fetchPlaylistMeta(playlistId) {
   const resp = await fetch(`https://www.youtube.com/playlist?list=${playlistId}`, {
-    headers: { 'Accept-Language': 'en-US,en;q=0.9' }
+    headers: { 'Accept-Language': 'en-US,en;q=0.9' },
+    credentials: 'include'
   });
   const html = await resp.text();
 
@@ -270,7 +271,8 @@ function extractPlaylistVideoIds(html) {
 
 async function fetchVideoById(videoId) {
   const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: { 'Accept-Language': 'en-US,en;q=0.9' }
+    headers: { 'Accept-Language': 'en-US,en;q=0.9' },
+    credentials: 'include'
   });
   const html = await resp.text();
   const data = extractJSON(html, 'ytInitialPlayerResponse');
@@ -321,13 +323,20 @@ async function fetchTranscriptLines(tracks) {
 // UTILS
 // ═══════════════════════════════════════════════════════════════
 
-// Robust JSON extractor — handles deeply nested objects in HTML
+// Robust JSON extractor — handles deeply nested objects in HTML.
+// Tries `varName = ` (spaced) first, then `varName=` (compact, minified pages).
 function extractJSON(html, varName) {
-  const marker = `${varName} = `;
-  const start  = html.indexOf(marker);
-  if (start === -1) return null;
+  let markerLen;
+  let start = html.indexOf(`${varName} = `);
+  if (start !== -1) {
+    markerLen = varName.length + 3; // " = "
+  } else {
+    start = html.indexOf(`${varName}=`);
+    if (start === -1) return null;
+    markerLen = varName.length + 1; // "="
+  }
 
-  let pos       = start + marker.length;
+  let pos       = start + markerLen;
   let depth     = 0;
   let inStr     = false;
   let esc       = false;

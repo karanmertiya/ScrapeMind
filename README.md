@@ -29,7 +29,7 @@ Scrape YouTube transcripts and LLM responses in one click.
 1. Open Chrome → `chrome://extensions/`
 2. Enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked**
-4. Select the `extension/` folder
+4. Select **this repository's root folder** (the folder containing `manifest.json`)
 
 That's it. No build step required.
 
@@ -124,15 +124,29 @@ The API URL is saved locally so you don't have to re-enter it.
 ## File Structure
 
 ```
-extension/
-├── manifest.json       # MV3 config, permissions, host_permissions
-├── background.js       # Service worker: YouTube fetch, playlist loop
-├── popup.html          # UI shell
-├── popup.css           # Adaptive dark/light styles
-├── popup.js            # UI logic, export, polling
-└── content/
-    └── llm.js          # DOM scraper for all LLM sites
+ScrapeMind/               ← load this folder in Chrome
+├── manifest.json         # MV3 config, permissions, host_permissions
+├── background.js         # Service worker: YouTube fetch, playlist loop
+├── popup.html            # UI shell
+├── popup.css             # Adaptive dark/light styles
+├── popup.js              # UI logic, export, polling
+├── content/
+│   └── llm.js            # DOM scraper for all LLM sites
+└── tests/
+    └── utils.test.js     # Node.js unit tests (run: node tests/utils.test.js)
 ```
+
+---
+
+## Running Tests
+
+Pure utility functions are covered by a Node.js test suite (no browser required):
+
+```bash
+node tests/utils.test.js
+```
+
+This tests `extractJSON`, `fmtSeconds`, `fmtMs`, and `extractPlaylistVideoIds`.
 
 ---
 

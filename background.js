@@ -172,9 +172,11 @@ async function scrapeYTPlaylist(tabId, playlistId, videoIds) {
     // If videoIds not provided, fetch from playlist page
     if (!videoIds?.length) {
       const meta = await fetchPlaylistMeta(playlistId);
+    console.log(`[ScrapeMind] Playlist meta: title="${meta.title}", videoIds=${meta.videoIds?.length}`);
       videoIds = meta.videoIds || [];
     }
 
+    console.log(`[ScrapeMind] Starting playlist scrape: ${videoIds.length} videos`);
     if (!videoIds.length) throw new Error('No videos found in this playlist.');
 
     const videos = [];
@@ -199,9 +201,11 @@ async function scrapeYTPlaylist(tabId, playlistId, videoIds) {
       if (i < videoIds.length - 1) await sleep(600 + Math.random() * 400);
     }
 
+    console.log(`[ScrapeMind] Playlist done. ${videos.length} scraped, ${errors.length} errors.`);
+
     // Store final result
     await chrome.storage.local.set({
-      playlistResult: { done: true, videos, errors, total: videoIds.length },
+      playlistResult: { done: true, videos, errors, scraped: videos.length, total: videoIds.length },
       playlistProgress: { done: true, current: videoIds.length, total: videoIds.length }
     });
 
@@ -215,29 +219,53 @@ async function fetchPlaylistMeta(playlistId) {
     headers: { 'Accept-Language': 'en-US,en;q=0.9' }
   });
   const html = await resp.text();
-  const data = extractJSON(html, 'ytInitialData');
-  if (!data) return { title: 'Playlist', videoCount: 0, videoIds: [] };
 
-  const title = data.header?.playlistHeaderRenderer?.title?.simpleText
-    || data.metadata?.playlistMetadataRenderer?.title
-    || 'Playlist';
+  // ── Title: try multiple known locations ──
+  let title = 'Playlist';
+  const titleMatch = html.match(/"title"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+)"\s*\}/)
+    || html.match(/<title>([^<]+)<\/title>/);
+  if (titleMatch) title = titleMatch[1].replace(' - YouTube', '').trim();
 
+  // ── Video IDs: regex sweep — immune to structural changes ──
+  // YouTube embeds {"videoId":"xxxx"} for each playlist item in the page HTML
+  const seen = new Set();
   const videoIds = [];
-  try {
-    const items = data.contents
-      ?.twoColumnBrowseResultsRenderer?.tabs?.[0]
-      ?.tabRenderer?.content
-      ?.sectionListRenderer?.contents?.[0]
-      ?.itemSectionRenderer?.contents?.[0]
-      ?.playlistVideoListRenderer?.contents || [];
 
-    for (const item of items) {
-      const vid = item?.playlistVideoRenderer?.videoId;
-      if (vid) videoIds.push(vid);
+  // Primary: playlistVideoRenderer objects always have "videoId":"ID" right next to "index"
+  const primaryRe = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
+  let m;
+  while ((m = primaryRe.exec(html)) !== null) {
+    const id = m[1];
+    if (!seen.has(id)) {
+      seen.add(id);
+      videoIds.push(id);
     }
-  } catch {}
+  }
 
-  return { title, videoCount: videoIds.length, videoIds };
+  // De-dupe artefacts: YouTube also embeds suggested/related videoIds in the sidebar.
+  // The playlist items appear in a dense block — take only IDs that appear inside
+  // a "playlistVideoRenderer" context. We do a second pass to filter.
+  const cleanIds = extractPlaylistVideoIds(html) || videoIds;
+
+  return { title, videoCount: cleanIds.length, videoIds: cleanIds };
+}
+
+// Stricter extractor: find the playlistVideoListRenderer blob and pull IDs from it only
+function extractPlaylistVideoIds(html) {
+  const marker = 'playlistVideoListRenderer';
+  const start  = html.indexOf(marker);
+  if (start === -1) return null;
+
+  // Grab a large slice from that point (covers all 100 items)
+  const slice = html.slice(start, start + 300_000);
+  const seen  = new Set();
+  const ids   = [];
+  const re    = /"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g;
+  let m;
+  while ((m = re.exec(slice)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); ids.push(m[1]); }
+  }
+  return ids.length ? ids : null;
 }
 
 async function fetchVideoById(videoId) {

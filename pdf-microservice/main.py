@@ -12,7 +12,7 @@ app = FastAPI(title="SmartNotes LaTeX PDF Compiler")
 # Allow the browser extension to make requests to this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to your extension ID
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,33 +24,31 @@ class MarkdownPayload(BaseModel):
 @app.post("/generate-pdf")
 async def generate_pdf(payload: MarkdownPayload):
     if not payload.markdown:
-        raise HTTPException(status_code=400, detail="Markdown content is empty")
+        raise HTTPException(status_code=400, detail="Content is empty")
 
-    # Create a temporary directory to handle file generation
     temp_dir = tempfile.mkdtemp()
-    md_path = os.path.join(temp_dir, "input.md")
+    input_path = os.path.join(temp_dir, "input.html")
     pdf_path = os.path.join(temp_dir, "output.pdf")
 
-    # Write the markdown payload to a file
-    with open(md_path, "w", encoding="utf-8") as f:
+    # Write the payload (which is actually HTML from editor.innerHTML) to a file
+    with open(input_path, "w", encoding="utf-8") as f:
         f.write(payload.markdown)
 
     try:
-        # Construct the Pandoc command. 
-        # Using geometry for margins and specifying the xelatex engine for better font support.
+        # Crucial Fix: Tell Pandoc it is reading an HTML file with the '-f html' flag
         command = [
             "pandoc",
-            md_path,
+            input_path,
+            "-f", "html",
             "-o", pdf_path,
             "--pdf-engine=xelatex",
             "-V", "geometry:margin=1in",
-            "-V", "mainfont=Helvetica", # Change to any gorgeous system font you prefer
-            "--toc" # Generates a Table of Contents based on the ## headers
+            "-V", "mainfont=Helvetica", 
+            "--toc" 
         ]
         
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        process = subprocess.run(command, check=True, capture_output=True, text=True)
 
-        # Return the generated PDF file. The browser will download it.
         return FileResponse(
             path=pdf_path, 
             filename="SmartNotes_Export.pdf", 
@@ -59,6 +57,6 @@ async def generate_pdf(payload: MarkdownPayload):
 
     except subprocess.CalledProcessError as e:
         print(f"Pandoc Error: {e.stderr}")
-        raise HTTPException(status_code=500, detail="Failed to compile LaTeX to PDF. Ensure Pandoc and TeX are installed.")
+        raise HTTPException(status_code=500, detail=f"Pandoc compilation failed: {e.stderr}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

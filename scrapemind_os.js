@@ -177,13 +177,14 @@ async function launchOS(videos) {
     exportBtn.disabled = true;
 
     try {
-        const response = await fetch('https://scrapemind-yj4c.onrender.com', {
+        // MUST include /generate-pdf at the end!
+        const response = await fetch('https://scrapemind-yj4c.onrender.com/generate-pdf', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ markdown: contentToExport }) 
         });
 
-        if (!response.ok) throw new Error("Microservice failed to compile PDF.");
+        if (!response.ok) throw new Error("Microservice failed to compile PDF. Render might be sleeping. Try again in 30 seconds.");
 
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);

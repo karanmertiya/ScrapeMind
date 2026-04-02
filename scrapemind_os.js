@@ -183,20 +183,30 @@ async function launchOS(videos) {
         const query = encodeURIComponent(projectName + " " + desc);
         window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
     }
-    else if (target.classList.contains('sm-action-paste')) {
-        const url = prompt("Paste direct Image URL:");
-        if (url) {
-            const img = document.createElement('img'); img.src = url;
-            gallery.appendChild(img);
-        }
+    else if (target.classList.contains('sm-action-upload')) {
+        const fileInput = wrapper.querySelector('.sm-file-upload');
+        fileInput.click();
+        fileInput.onchange = (ev) => {
+            const file = ev.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (readerEvent) => {
+                    const img = document.createElement('img');
+                    img.src = readerEvent.target.result;
+                    gallery.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
     }
     else if (target.classList.contains('sm-action-generate')) {
         const userPrompt = prompt("Edit the image generation prompt:", desc);
         if (userPrompt) {
-            target.innerText = "⏳ Generating Image...";
+            target.innerText = "⏳ Generating...";
             target.disabled = true;
-            // Using Pollinations AI - a free, keyless image generator
-            const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userPrompt)}?width=800&height=500&nologo=true`;
+            // Free Pollinations AI image generator with a random seed cache buster
+            const randomSeed = Math.floor(Math.random() * 1000000);
+            const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userPrompt)}?width=800&height=500&nologo=true&seed=${randomSeed}`;
             const img = document.createElement('img');
             img.onload = () => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
             img.onerror = () => { alert("Failed to generate image."); target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
@@ -276,19 +286,27 @@ async function launchOS(videos) {
     }
   };
 
-  // ── Advanced LaTeX PDF Export via Microservice (Fixes Image Crashes) ──
+  // ── Advanced LaTeX PDF Export via Microservice (Fixes ALL Image Crashes) ──
   document.getElementById('sm-btn-export').onclick = async () => {
     const exportBtn = document.getElementById('sm-btn-export');
     
     // 1. Clone the editor so we don't ruin the live user interface
     const cloneEditor = editorNode.cloneNode(true);
     
-    // 2. Unblur any solutions so they show up correctly in the PDF
-    cloneEditor.querySelectorAll('.sm-blurred-text').forEach(el => {
+    // 2. Unblur any solutions line-by-line so they show up correctly in the PDF
+    cloneEditor.querySelectorAll('.sm-blurred-line').forEach(el => {
         el.style.filter = 'none';
+        el.style.display = 'block';
     });
 
-    // 3. Remove Images to prevent Pandoc 500 crashes, leaving just the descriptive placeholder text
+    // 3. FORCE STRIP ALL IMAGES globally to prevent Pandoc 500 crashes
+    cloneEditor.querySelectorAll('img').forEach(img => {
+        const placeholder = document.createElement('div');
+        placeholder.innerHTML = `<div style="text-align:center; padding: 10px; border: 1px dashed #666; margin: 10px 0;"><strong style="color: #444; font-size: 14px;">[Image omitted to prevent LaTeX compilation errors]</strong></div>`;
+        img.replaceWith(placeholder);
+    });
+
+    // 4. Remove Diagram Wrapper controls
     const wrappers = cloneEditor.querySelectorAll('.sm-diagram-wrapper');
     wrappers.forEach(w => {
         const descEl = w.querySelector('.sm-diagram-desc');
@@ -296,7 +314,6 @@ async function launchOS(videos) {
         const cleanHTML = `
             <div style="text-align:center; margin: 25px 0; padding: 10px; border: 1px dashed #666;">
                 <strong style="color: #444; font-size: 14px;">[Diagram Placeholder: ${desc}]</strong><br>
-                <span style="font-size: 12px; color: #888;">(Image omitted to prevent LaTeX compilation errors)</span>
             </div><br>`;
         w.outerHTML = cleanHTML;
     });
@@ -339,7 +356,7 @@ async function launchOS(videos) {
     }
   };
 
-  // ── URL Paste Fix ──
+  // ── Queue Adder ──
   document.getElementById('sm-btn-add').onclick = () => {
     const urlStr = document.getElementById('sm-add-url').value;
     try {
@@ -458,14 +475,18 @@ function buildQueueUI() {
   document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
-// ── Helper: Format Markdown to HTML (Fixes Code & Lists Clumping) ──
+// ── Helper: Format Markdown to HTML (Fixes Code & Line-by-Line Blur) ──
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
     
-    // Parse the Blurred Practice Solutions
-    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, 
-        '<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click to Reveal)</strong><div class="sm-blurred-text" style="filter: blur(6px); cursor: pointer; user-select: none;" onclick="this.style.filter=\'none\'; this.style.cursor=\'text\';">$1</div></div>'
-    );
+    // Parse the Blurred Practice Solutions (Line-by-Line unveiling)
+    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
+        const lines = content.trim().split('\n').map(line => {
+            if (!line.trim()) return '<br>';
+            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;" onclick="this.style.filter='none'; this.style.cursor='text';">${line}</div><br>`;
+        }).join('');
+        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
+    });
 
     // Safely extract code blocks
     cleanText = cleanText.replace(/\x60\x60\x60(?:\w+)?\n([\s\S]*?)\x60\x60\x60/g, '<pre style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>$1</code></pre>');
@@ -567,7 +588,7 @@ async function triggerAINotesChunked() {
     }
   }
 
-  // Convert Diagram Tags to the Interactive UI with AI Generation Button
+  // Convert Diagram Tags to the Interactive UI with proper Action inputs
   finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(?:\[([\d:]+)\])?\s*(.*?)\]\]/g, (match, timeStr, desc) => {
     let seekButtonHtml = "";
     if (timeStr) {
@@ -583,7 +604,8 @@ async function triggerAINotesChunked() {
         <button class="sm-diagram-btn sm-action-capture">📸 Capture Frame</button>
         <button class="sm-diagram-btn sm-action-generate">🎨 Generate AI Image</button>
         <button class="sm-diagram-btn sm-action-search">🔍 Search Web</button>
-        <button class="sm-diagram-btn sm-action-paste">🔗 Paste Image URL</button>
+        <input type="file" class="sm-file-upload" accept="image/*" style="display:none;">
+        <button class="sm-diagram-btn sm-action-upload">📁 Upload PC Image</button>
         <button class="sm-diagram-btn sm-action-dismiss" style="border-color:#ef4444;">❌ Dismiss</button>
       </div>
       <div class="sm-diagram-gallery" contenteditable="true"></div>

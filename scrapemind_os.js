@@ -9,11 +9,11 @@ let autoMuteOverride = false;
 let projectName = "Untitled Project";
 let projectMode = "skillgain"; // Locks in the mode for the whole project
 
-// ── Overhauled, Elite System Instructions ──
+// ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
-  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Extract exact formulas, definitions, and core theories from the transcript. Ignore filler. \n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: Describe what the image shows]]. \n\nConclude with 3 Previous Year Question (PYQ) style exam problems.",
-  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Generate Active-Recall notes from the transcript. Focus heavily on algorithms, code logic, and practical application. \n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: Code snippet or architecture diagram being discussed]]. \n\nEnd the notes with 2 technical interview/OA round questions.",
-  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Synthesize the transcript into a critical literature review. Highlight hypotheses, methodologies, and edge-cases. \n\nRULE: Write [[DIAGRAM: Data chart or experimental setup shown]] whenever visual evidence is referenced."
+  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).\n\nConclude with 3 Previous Year Question (PYQ) style exam problems.",
+  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).\n\nEnd the notes with 2 technical interview/OA round questions.",
+  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
 };
 
 let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', syllabus: '', prompts: { ...defaultPrompts } };
@@ -46,8 +46,8 @@ async function launchOS(videos) {
             <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
             <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
             <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export PDF</button>
-            <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit Selection</button>
-            <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate Notes</button>
+            <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit</button>
+            <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate</button>
             <button class="sm-btn" id="sm-close-os">Exit</button>
           </div>
         </div>
@@ -130,7 +130,6 @@ async function launchOS(videos) {
       const inputName = document.getElementById('sm-init-project-name').value.trim();
       projectName = inputName || "Untitled Project";
       
-      // Lock in the mode for this project session
       projectMode = document.getElementById('sm-init-mode').value;
       const displayMode = document.getElementById('sm-display-mode');
       displayMode.style.display = 'inline-block';
@@ -139,7 +138,7 @@ async function launchOS(videos) {
       document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
       document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
       buildQueueUI(); 
-      processVideo(orderedQueue[0], 0); // Start the background extraction ONLY after setup
+      processVideo(orderedQueue[0], 0); 
   };
 
   engineInterval = setInterval(() => {
@@ -158,37 +157,72 @@ async function launchOS(videos) {
   // Bind UI Events
   document.getElementById('sm-close-os').onclick = exitOS;
   document.getElementById('sm-toggle-time').onchange = (e) => { showTimestamps = e.target.checked; renderWorkspace(currentViewedVideo); };
-  document.getElementById('sm-editor').addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML; });
   
+  const editorNode = document.getElementById('sm-editor');
+  editorNode.addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML; });
+  
+  // ── Event Delegation for Diagram Buttons (Canvas removed) ──
+  editorNode.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!target.classList.contains('sm-diagram-btn')) return;
+
+    const wrapper = target.closest('.sm-diagram-wrapper');
+    const gallery = wrapper.querySelector('.sm-diagram-gallery');
+    const desc = wrapper.querySelector('.sm-diagram-desc').getAttribute('data-desc');
+
+    if (target.classList.contains('sm-action-seek')) {
+        const time = target.getAttribute('data-time');
+        const v = document.querySelector('video');
+        if (v) { v.currentTime = parseInt(time); v.muted = false; autoMuteOverride = true; setTimeout(() => autoMuteOverride = false, 8000); }
+    }
+    else if (target.classList.contains('sm-action-search')) {
+        const query = encodeURIComponent(projectName + " " + desc);
+        window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
+    }
+    else if (target.classList.contains('sm-action-paste')) {
+        const url = prompt("Paste direct Image URL:");
+        if (url) {
+            const img = document.createElement('img'); img.src = url;
+            gallery.appendChild(img);
+        }
+    }
+    else if (target.classList.contains('sm-action-generate')) {
+        const userPrompt = prompt("Edit the image generation prompt:", desc);
+        if (userPrompt) {
+            target.innerText = "⏳ Generating Image...";
+            target.disabled = true;
+            // Using Pollinations AI - a free, keyless image generator
+            const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userPrompt)}?width=800&height=500&nologo=true`;
+            const img = document.createElement('img');
+            img.onload = () => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
+            img.onerror = () => { alert("Failed to generate image."); target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
+            img.src = imgUrl;
+            gallery.appendChild(img);
+        }
+    }
+    else if (target.classList.contains('sm-action-dismiss')) {
+        wrapper.remove();
+    }
+
+    if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
+  });
+
   // ── Inline "Make it Perfect" Editor ──
   document.getElementById('sm-btn-edit').onclick = async () => {
     const selection = window.getSelection();
     const highlightedText = selection.toString().trim();
     
-    if (!highlightedText) {
-        alert("Please highlight the text you want to edit first.");
-        return;
-    }
+    if (!highlightedText) { alert("Please highlight the text you want to edit first."); return; }
 
     const instruction = prompt("How should the AI rewrite this? (e.g., 'Make it shorter', 'Format as a list', 'Fix clumping')");
     if (!instruction) return;
 
-    if (!settings.groqKey) {
-        alert("Please set your Groq API key in the Meta settings first.");
-        return;
-    }
+    if (!settings.groqKey) { alert("Please set your Groq API key in the Meta settings first."); return; }
 
-    const editor = document.getElementById('sm-editor');
     const originalBtnText = document.getElementById('sm-btn-edit').innerText;
     document.getElementById('sm-btn-edit').innerText = "⏳ Rewriting...";
 
-    const promptText = `You are a precision editing assistant. 
-    User Instruction: "${instruction}"
-    
-    Target Text to Rewrite:
-    "${highlightedText}"
-    
-    Return ONLY the perfectly rewritten text formatted in HTML. Do not include any other commentary.`;
+    const promptText = `You are a precision editing assistant. \nUser Instruction: "${instruction}"\n\nTarget Text to Rewrite:\n"${highlightedText}"\n\nReturn ONLY the perfectly rewritten text formatted in HTML. Do not include any other commentary.`;
 
     try {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -204,25 +238,20 @@ async function launchOS(videos) {
         const data = await response.json();
         if (data.error) throw new Error(data.error.message);
         
-        let newText = data.choices[0].message.content.replace(/```html|```/g, '');
+        let newText = data.choices[0].message.content.replace(/\x60\x60\x60html|\x60\x60\x60/g, '');
         
-        // Replace the highlighted text in the editor
         const range = selection.getRangeAt(0);
         range.deleteContents();
         
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = newText;
         
-        // Insert the new nodes
         const frag = document.createDocumentFragment();
-        let node, lastNode;
-        while ((node = tempDiv.firstChild)) {
-            lastNode = frag.appendChild(node);
-        }
+        let node;
+        while ((node = tempDiv.firstChild)) { frag.appendChild(node); }
         range.insertNode(frag);
         
-        // Save state
-        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editor.innerHTML;
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
 
     } catch (e) {
         alert(`Edit failed: ${e.message}`);
@@ -231,13 +260,35 @@ async function launchOS(videos) {
     }
   };
 
-  // ── Advanced LaTeX PDF Export via Microservice ──
+  // ── Advanced LaTeX PDF Export via Microservice (With UI Dissolver) ──
   document.getElementById('sm-btn-export').onclick = async () => {
     const exportBtn = document.getElementById('sm-btn-export');
-    const editor = document.getElementById('sm-editor');
     
-    // Grab the innerHTML to send to the Pandoc microservice.
-    const contentToExport = `<h1>${projectName}</h1><br><br>` + editor.innerHTML; 
+    // 1. Clone the editor so we don't ruin the live user interface
+    const cloneEditor = editorNode.cloneNode(true);
+    
+    // 2. Clean up Diagram Wrappers (Dissolve the UI for PDF Export)
+    const wrappers = cloneEditor.querySelectorAll('.sm-diagram-wrapper');
+    wrappers.forEach(w => {
+        const descEl = w.querySelector('.sm-diagram-desc');
+        const desc = descEl ? descEl.getAttribute('data-desc') : "";
+        const galleryHTML = w.querySelector('.sm-diagram-gallery').innerHTML;
+        
+        // If there are no images in the gallery, remove the whole block completely
+        if (!galleryHTML.trim() || !galleryHTML.includes('<img')) {
+            w.remove();
+        } else {
+            // Otherwise, replace the ugly wrapper and buttons with a clean, print-friendly div
+            const cleanHTML = `
+                <div style="text-align:center; margin: 25px 0;">
+                    <strong style="color: #666; font-size: 14px;">Figure: ${desc}</strong><br><br>
+                    ${galleryHTML}
+                </div><br>`;
+            w.outerHTML = cleanHTML;
+        }
+    });
+
+    const contentToExport = `<h1>${projectName}</h1><br><br>` + cloneEditor.innerHTML; 
 
     if (!contentToExport || contentToExport.includes("Select a video") || contentToExport.includes("Project initialized")) {
         alert("Generate notes first before exporting!");
@@ -282,24 +333,15 @@ async function launchOS(videos) {
       const url = new URL(urlStr); 
       const vid = url.searchParams.get('v');
       if (vid && !playlistState[vid]) {
-        // Blindly add to queue. The background extractor will fetch the real title when it navigates there.
         playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], userEdits: "" };
-        orderedQueue.push(vid); 
-        buildQueueUI(); 
-        document.getElementById('sm-add-url').value = "";
+        orderedQueue.push(vid); buildQueueUI(); document.getElementById('sm-add-url').value = "";
         
         const unfinished = orderedQueue.findIndex(id => playlistState[id].status === 'waiting');
         if (unfinished !== -1) processVideo(orderedQueue[unfinished], unfinished);
-      } else {
-        alert("Video already in queue or invalid ID.");
-      }
-    } catch(e) { 
-        alert("Invalid URL. Please paste a full YouTube video link."); 
-        document.getElementById('sm-add-url').value = "";
-    }
+      } else { alert("Video already in queue or invalid ID."); }
+    } catch(e) { alert("Invalid URL."); document.getElementById('sm-add-url').value = ""; }
   };
 
-  // Re-bind search event delegation
   document.body.addEventListener('keyup', (e) => {
     if (e.target && e.target.id === 'sm-oracle-search') {
         const query = e.target.value.toLowerCase();
@@ -355,50 +397,6 @@ async function launchOS(videos) {
 
 function exitOS() { document.getElementById('sm-os-root').remove(); document.body.style.overflow = 'auto'; clearInterval(engineInterval); isRunning = false; }
 
-// ── Multi-Capture Diagram UI ──
-window.smSeekVideo = (seconds) => {
-  const v = document.querySelector('video');
-  if (v) { v.currentTime = seconds; v.muted = false; autoMuteOverride = true; setTimeout(() => { autoMuteOverride = false; }, 8000); }
-};
-
-window.captureDiagramFrame = (btn) => {
-  const v = document.querySelector('video');
-  if (!v) { alert("Video not playing."); return; }
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-    canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
-    const img = document.createElement('img');
-    img.src = canvas.toDataURL('image/jpeg', 0.8);
-    const gallery = btn.closest('.sm-diagram-wrapper').querySelector('.sm-diagram-gallery');
-    gallery.appendChild(img);
-    if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
-  } catch(e) { alert("Could not capture frame."); }
-};
-
-window.pasteImageURL = (btn) => {
-  const url = prompt("Paste direct Image URL or Web Link:");
-  if(url) {
-    const gallery = btn.closest('.sm-diagram-wrapper').querySelector('.sm-diagram-gallery');
-    // Basic check: if it ends in image extensions, embed as image. Otherwise, make it a clickable reference link.
-    if(url.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null) {
-        const img = document.createElement('img'); img.src = url;
-        gallery.appendChild(img);
-    } else {
-        const link = document.createElement('a');
-        link.href = url; link.target = "_blank"; link.textContent = `🔗 Context Reference Link: ${url}`;
-        link.style.color = "#a855f7"; link.style.display = "block"; link.style.marginTop = "10px";
-        gallery.appendChild(link);
-    }
-    if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
-  }
-};
-
-window.dismissDiagram = (btn) => {
-  btn.closest('.sm-diagram-wrapper').remove();
-  if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
-};
-
 // ── Workspace Render ──
 function timeToSeconds(timeStr) { const p = timeStr.split(':').map(Number); return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p[0]*60 + p[1]; }
 
@@ -411,14 +409,14 @@ function renderWorkspace(videoId) {
 
   let html = `<h2>=== ${data.title} ===</h2><br><br>`;
   if (showTimestamps) {
-    html += data.transcript.map(t => { const sec = timeToSeconds(t.time); return `<div><a class="sm-timestamp-link" contenteditable="false" onclick="window.smSeekVideo(${sec})">[${t.time}]</a> ${t.text}</div>`; }).join('');
+    html += data.transcript.map(t => { const sec = timeToSeconds(t.time); return `<div><a class="sm-timestamp-link" contenteditable="false" data-time="${sec}">[${t.time}]</a> ${t.text}</div>`; }).join('');
   } else { html += data.transcript.map(t => t.text).join(' '); }
   editor.innerHTML = html;
 }
 
 function buildQueueUI() {
   const qList = document.getElementById('sm-queue-list'); 
-  if(!qList) return; // Guard for initialization state
+  if(!qList) return; 
   qList.innerHTML = '';
   orderedQueue.forEach(id => {
     const v = playlistState[id]; const thumbUrl = `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`;
@@ -447,10 +445,13 @@ function buildQueueUI() {
   document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
-// ── Helper: Format Markdown to HTML to fix Clumping ──
+// ── Helper: Format Markdown to HTML (Fixes Code Clumping Safely) ──
 function formatLLMOutput(rawText) {
-    let cleanText = rawText.replace(/```html|```/g, ''); // Strip codeblocks
-    // If the LLM disobeyed and sent Markdown instead of HTML, intercept and fix it with line breaks
+    let cleanText = rawText;
+    
+    // Safely extract code blocks without triggering internal markdown parser crashes
+    cleanText = cleanText.replace(/\x60\x60\x60(?:\w+)?\n([\s\S]*?)\x60\x60\x60/g, '<pre style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>$1</code></pre>');
+
     cleanText = cleanText
         .replace(/^### (.*$)/gim, '<br><br><h3>$1</h3>')
         .replace(/^## (.*$)/gim, '<br><br><h2>$1</h2>')
@@ -458,6 +459,7 @@ function formatLLMOutput(rawText) {
         .replace(/^\> (.*$)/gim, '<blockquote style="border-left: 3px solid #a855f7; padding-left: 10px; margin: 10px 0;">$1</blockquote>')
         .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
         .replace(/^- (.*$)/gim, '<ul style="margin-bottom: 10px;"><li>$1</li></ul>'); 
+        
     return cleanText;
 }
 
@@ -465,7 +467,7 @@ function formatLLMOutput(rawText) {
 async function triggerAINotesChunked() {
   if (!currentViewedVideo || !playlistState[currentViewedVideo].transcript.length) return;
 
-  const mode = projectMode; // Use the globally locked project mode
+  const mode = projectMode; 
   const editor = document.getElementById('sm-editor');
   const originalHTML = editor.innerHTML;
   
@@ -515,18 +517,27 @@ async function triggerAINotesChunked() {
     }
   }
 
-  // Convert Diagram Tags to the Interactive UI
-  finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(.*?)\]\]/g, 
-    `<div class="sm-diagram-wrapper" contenteditable="false">
-      <div class="sm-diagram-desc">📸 Requested Diagram: $1</div>
-      <div class="sm-diagram-actions">
-        <button class="sm-diagram-btn" onclick="window.captureDiagramFrame(this)">Capture Frame</button>
-        <button class="sm-diagram-btn" onclick="window.pasteImageURL(this)">Add Context/URL</button>
-        <button class="sm-diagram-btn" style="border-color:#ef4444;" onclick="window.dismissDiagram(this)">Dismiss</button>
+  // Convert Diagram Tags to the Interactive UI with AI Generation Button (Canvas Removed)
+  finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(?:\[([\d:]+)\])?\s*(.*?)\]\]/g, (match, timeStr, desc) => {
+    let seekButtonHtml = "";
+    if (timeStr) {
+        const sec = timeToSeconds(timeStr);
+        seekButtonHtml = `<button class="sm-diagram-btn sm-action-seek" data-time="${sec}">⏱️ Seek to ${timeStr}</button>`;
+    }
+    
+    return `
+    <div class="sm-diagram-wrapper" contenteditable="false">
+      <div class="sm-diagram-desc" data-desc="${desc.replace(/"/g, '&quot;')}">📸 Requested Diagram: ${desc}</div>
+      <div class="sm-diagram-actions" style="flex-wrap: wrap;">
+        ${seekButtonHtml}
+        <button class="sm-diagram-btn sm-action-generate">🎨 Generate AI Image</button>
+        <button class="sm-diagram-btn sm-action-search">🔍 Search Web</button>
+        <button class="sm-diagram-btn sm-action-paste">🔗 Paste Image URL</button>
+        <button class="sm-diagram-btn sm-action-dismiss" style="border-color:#ef4444;">❌ Dismiss</button>
       </div>
       <div class="sm-diagram-gallery" contenteditable="true"></div>
-    </div><br><br>`
-  );
+    </div><br><br>`;
+  });
   
   playlistState[currentViewedVideo].userEdits = finalNotesHTML; 
   editor.innerHTML = finalNotesHTML;
@@ -549,7 +560,6 @@ async function processVideo(vid, index) {
   }
 
   await sleep(3000); 
-  // Update the title dynamically if it was added via URL Paste
   state.title = document.title.replace(' - YouTube', ''); 
   
   const expandBtn = document.querySelector('tp-yt-paper-button#expand') || document.querySelector('ytd-text-inline-expander button');

@@ -7,6 +7,7 @@ let currentViewedVideo = null;
 let showTimestamps = false;
 let autoMuteOverride = false; 
 let projectName = "Untitled Project";
+let projectMode = "skillgain"; // Locks in the mode for the whole project
 
 // ── Overhauled, Elite System Instructions ──
 const defaultPrompts = {
@@ -42,11 +43,7 @@ async function launchOS(videos) {
         <div class="sm-header">
           <h1 id="sm-project-title">ScrapeMind OS <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle..."></h1>
           <div class="sm-toolbar">
-            <select id="sm-mode-selector" class="sm-mode-select">
-              <option value="examprep">📚 ExamPrep Mode</option>
-              <option value="skillgain">🧠 SkillGain Mode</option>
-              <option value="research">🔬 Research Mode</option>
-            </select>
+            <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
             <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
             <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export PDF</button>
             <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate Notes</button>
@@ -55,11 +52,19 @@ async function launchOS(videos) {
         </div>
         
         <div id="sm-editor" contenteditable="true">
-            <div style="text-align:center; padding-top: 100px; font-family: sans-serif;">
+            <div style="text-align:center; padding-top: 80px; font-family: sans-serif;">
                 <h2 style="color: #a855f7; font-size: 28px; margin-bottom: 10px;">Initialize Workspace</h2>
-                <p style="color: #a1a1aa; margin-bottom: 25px;">Define your project scope before the engine starts.</p>
+                <p style="color: #a1a1aa; margin-bottom: 25px;">Define your project scope and learning mode.</p>
+                
                 <input type="text" id="sm-init-project-name" placeholder="Name this Project..." style="padding: 12px; width: 300px; border-radius: 6px; border: 1px solid #3f3f46; background: #0f0f11; color: white; margin-bottom: 15px; font-size: 16px;"><br>
-                <button id="sm-start-project-btn" style="padding: 12px 24px; background: #a855f7; color: white; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">Launch Engine</button>
+                
+                <select id="sm-init-mode" style="padding: 12px; width: 300px; border-radius: 6px; border: 1px solid #a855f7; background: #18181b; color: white; margin-bottom: 25px; font-size: 14px; font-weight: bold; cursor: pointer; outline: none;">
+                  <option value="examprep">📚 ExamPrep Mode</option>
+                  <option value="skillgain" selected>🧠 SkillGain Mode</option>
+                  <option value="research">🔬 Research Mode</option>
+                </select><br>
+
+                <button id="sm-start-project-btn" style="padding: 12px 24px; background: #a855f7; color: white; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; width: 300px;">Launch Engine</button>
             </div>
         </div>
         
@@ -123,6 +128,13 @@ async function launchOS(videos) {
   document.getElementById('sm-start-project-btn').onclick = () => {
       const inputName = document.getElementById('sm-init-project-name').value.trim();
       projectName = inputName || "Untitled Project";
+      
+      // Lock in the mode for this project session
+      projectMode = document.getElementById('sm-init-mode').value;
+      const displayMode = document.getElementById('sm-display-mode');
+      displayMode.style.display = 'inline-block';
+      displayMode.innerText = projectMode.toUpperCase() + ' MODE';
+
       document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
       document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
       buildQueueUI(); 
@@ -184,7 +196,7 @@ async function launchOS(videos) {
         a.click();
         window.URL.revokeObjectURL(url);
     } catch (error) {
-        alert(`Export Error: ${error.message}\nMake sure your Python microservice is running on port 8000!`);
+        alert(`Export Error: ${error.message}\nMake sure your Render service is live and fully deployed!`);
     } finally {
         exportBtn.innerText = originalText;
         exportBtn.disabled = false;
@@ -381,7 +393,7 @@ function formatLLMOutput(rawText) {
 async function triggerAINotesChunked() {
   if (!currentViewedVideo || !playlistState[currentViewedVideo].transcript.length) return;
 
-  const mode = document.getElementById('sm-mode-selector').value;
+  const mode = projectMode; // Use the globally locked project mode
   const editor = document.getElementById('sm-editor');
   const originalHTML = editor.innerHTML;
   

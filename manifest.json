@@ -1,44 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "ScrapeMind",
-  "version": "1.0.0",
-  "description": "Scrape YouTube transcripts & LLM responses in one click",
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "tabs",
-    "storage",
-    "downloads",
-    "clipboardWrite"
-  ],
-  "host_permissions": [
-    "https://www.youtube.com/*",
-    "https://gemini.google.com/*",
-    "https://chat.openai.com/*",
-    "https://chatgpt.com/*",
-    "https://claude.ai/*",
-    "https://www.perplexity.ai/*",
-    "https://copilot.microsoft.com/*"
-  ],
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "ScrapeMind"
-  },
-  "background": {
-    "service_worker": "background.js"
-  },
+  "name": "ScrapeMind OS",
+  "version": "3.0.0",
+  "description": "The Ultimate In-Page Learning Environment",
+  "permissions": ["activeTab", "scripting", "tabs", "storage"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "action": { "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
-      "matches": [
-        "https://gemini.google.com/*",
-        "https://chat.openai.com/*",
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
-        "https://www.perplexity.ai/*",
-        "https://copilot.microsoft.com/*"
-      ],
-      "js": ["content/llm.js"],
-      "run_at": "document_idle"
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["scrapemind_os.js"],
+      "css": ["scrapemind_os.css"]
     }
   ]
 }

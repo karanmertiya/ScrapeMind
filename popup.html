@@ -1,112 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ScrapeMind</title>
-  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body { width: 250px; padding: 20px; font-family: -apple-system, sans-serif; background: #18181b; color: #fff; text-align: center; }
+    h3 { margin: 0 0 10px 0; color: #a855f7; }
+    .btn { width: 100%; padding: 12px; background: #a855f7; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.2s; }
+    .btn:hover { background: #9333ea; }
+    .btn:disabled { background: #3f3f46; cursor: not-allowed; color: #888; }
+    .hidden { display: none; }
+    #status { font-size: 13px; color: #a1a1aa; }
+  </style>
 </head>
 <body>
-
-  <!-- Header -->
-  <header>
-    <div class="logo">
-      <span class="logo-icon">⚡</span>
-      <span class="logo-text">ScrapeMind</span>
-    </div>
-    <div id="badge" class="badge badge--unknown">Detecting…</div>
-  </header>
-
-  <!-- Page Info -->
-  <div id="page-info" class="page-info hidden">
-    <span id="page-title" class="page-title"></span>
-  </div>
-
-  <!-- ── YOUTUBE PANEL ── -->
-  <section id="panel-yt" class="panel hidden">
-    <div class="section-label">YouTube</div>
-    <div class="btn-group">
-      <button id="btn-yt-video" class="btn btn--primary">
-        <span class="btn-icon">▶</span>
-        Scrape This Video
-      </button>
-      <button id="btn-yt-playlist" class="btn btn--secondary" disabled>
-        <span class="btn-icon">☰</span>
-        Scrape Full Playlist
-        <span id="playlist-count" class="pill"></span>
-      </button>
-    </div>
-    <div id="no-captions" class="warn hidden">⚠ No captions detected for this video.</div>
-  </section>
-
-  <!-- ── LLM PANEL ── -->
-  <section id="panel-llm" class="panel hidden">
-    <div class="section-label" id="llm-platform-label">LLM Response</div>
-    <div class="btn-group">
-      <button id="btn-llm-last" class="btn btn--primary">
-        <span class="btn-icon">↩</span>
-        Scrape Last Response
-      </button>
-      <button id="btn-llm-all" class="btn btn--secondary">
-        <span class="btn-icon">≡</span>
-        Scrape All AI Responses
-      </button>
-    </div>
-  </section>
-
-  <!-- ── UNKNOWN PANEL ── -->
-  <section id="panel-unknown" class="panel hidden">
-    <div class="empty-state">
-      <div class="empty-icon">🔍</div>
-      <div class="empty-text">Navigate to a <strong>YouTube</strong> video<br>or an LLM chat page to begin.</div>
-      <div class="supported-list">ChatGPT · Gemini · Claude · Perplexity · Copilot</div>
-    </div>
-  </section>
-
-  <!-- ── PROGRESS BAR (playlist) ── -->
-  <div id="progress-wrap" class="progress-wrap hidden">
-    <div class="progress-label">
-      <span id="progress-text">Scraping playlist…</span>
-      <span id="progress-fraction"></span>
-    </div>
-    <div class="progress-track">
-      <div id="progress-bar" class="progress-bar" style="width:0%"></div>
-    </div>
-  </div>
-
-  <!-- ── RESULT AREA ── -->
-  <div id="result-area" class="result-area hidden">
-    <div class="result-header">
-      <span id="result-meta" class="result-meta"></span>
-      <button id="btn-clear" class="btn-icon-only" title="Clear result">✕</button>
-    </div>
-    <textarea id="result-preview" class="result-preview" readonly placeholder="Result will appear here…"></textarea>
-  </div>
-
-  <!-- ── EXPORT OPTIONS ── -->
-  <div id="export-bar" class="export-bar hidden">
-    <div class="section-label">Export</div>
-    <div class="export-btns">
-      <button id="btn-copy"     class="btn btn--export" title="Copy to clipboard">📋 Copy</button>
-      <button id="btn-save-json"class="btn btn--export" title="Save as JSON">⬇ JSON</button>
-      <button id="btn-save-txt" class="btn btn--export" title="Save as TXT">⬇ TXT</button>
-      <button id="btn-api"      class="btn btn--export btn--api" title="POST to API">⚡ API</button>
-    </div>
-
-    <!-- API endpoint config (collapsible) -->
-    <div id="api-config" class="api-config hidden">
-      <input id="api-url" class="api-input" type="url"
-             placeholder="https://your-backend.com/ingest"
-             spellcheck="false" />
-      <button id="btn-send-api" class="btn btn--primary btn--sm">Send</button>
-    </div>
-  </div>
-
-  <!-- ── STATUS / ERROR ── -->
-  <div id="status-bar" class="status-bar hidden">
-    <span id="status-msg"></span>
-  </div>
-
+  <h3>ScrapeMind OS ⚡</h3>
+  <div id="status">Detecting YouTube Playlist...</div>
+  <button id="btn-launch" class="btn hidden" disabled>Launch Workspace</button>
   <script src="popup.js"></script>
 </body>
 </html>

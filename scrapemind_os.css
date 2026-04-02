@@ -1,0 +1,89 @@
+/* ── The Perfect_Notes Aesthetic Variables ── */
+:root {
+  --title-blue: #0B4F8A; --accent-blue: #1F6FB2; --soft-blue: #EAF4FF;
+  --exam-green: #0C7C59; --warn-red: #A63D40; --ink: #111111;
+}
+
+#sm-os-root { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0f0f11; z-index: 2147483647; display: flex; font-family: -apple-system, sans-serif; color: #fff; }
+#sm-studio { width: 70%; height: 100%; display: flex; flex-direction: column; background: #18181b; border-right: 1px solid #27272a; position: relative; }
+.sm-header { padding: 20px 30px; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center; }
+.sm-header h1 { margin: 0; font-size: 22px; font-weight: 700; background: linear-gradient(to right, #a855f7, #ec4899); -webkit-background-clip: text; color: transparent; display: flex; align-items: center; gap: 15px;}
+.sm-search { background: #0f0f11; border: 1px solid #3f3f46; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; width: 180px; }
+
+.sm-mode-select { background: #27272a; border: 1px solid #a855f7; color: white; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; outline: none; }
+.sm-mode-select option { background: #18181b; }
+
+.sm-toolbar { display: flex; gap: 8px; align-items: center; }
+.sm-btn { padding: 8px 14px; background: #27272a; border: 1px solid #3f3f46; color: #fff; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; display: flex; align-items: center; gap: 5px; }
+.sm-btn:hover { background: #3f3f46; }
+.sm-btn-primary { background: #a855f7; border-color: #a855f7; }
+.sm-btn-primary:hover { background: #9333ea; }
+.sm-btn-success { background: #30d158; border-color: #30d158; color: #000; }
+.sm-btn-success:hover { background: #3ced6a; }
+.sm-toggle-label { font-size: 13px; color: #a1a1aa; display: flex; align-items: center; gap: 5px; cursor: pointer; margin-right: 10px;}
+
+/* Workspace */
+#sm-editor { flex: 1; padding: 30px; width: 100%; background: transparent; border: none; color: #e4e4e7; font-size: 15px; line-height: 1.6; outline: none; font-family: "SF Mono", monospace; box-sizing: border-box; overflow-y: auto; }
+#sm-editor img { max-width: 90%; border-radius: 8px; border: 2px solid #3f3f46; margin: 15px 0; display: block; }
+.sm-timestamp-link { color: #a855f7; cursor: pointer; text-decoration: underline; font-weight: bold; background: rgba(168, 85, 247, 0.1); padding: 2px 4px; border-radius: 4px; margin-right: 5px;}
+.sm-timestamp-link:hover { background: rgba(168, 85, 247, 0.3); }
+
+/* Engine Room */
+#sm-engine { width: 30%; height: 100%; display: flex; flex-direction: column; background: #0f0f11; }
+.sm-queue-header { padding: 20px; border-bottom: 1px solid #27272a; display: flex; justify-content: space-between; align-items: center; }
+.sm-queue-header span { font-weight: 600; }
+#sm-queue-list { flex: 1; overflow-y: auto; padding: 15px; }
+
+/* Dynamic Queue Addition Input */
+.sm-queue-adder { padding: 15px; border-top: 1px solid #27272a; display: flex; gap: 8px; background: #18181b; }
+.sm-queue-adder input { flex: 1; padding: 8px 12px; background: #0f0f11; border: 1px solid #3f3f46; color: white; border-radius: 6px; font-size: 12px; }
+.sm-queue-adder button { padding: 8px 12px; background: #30d158; border: none; color: black; font-weight: bold; border-radius: 6px; cursor: pointer; }
+.sm-queue-adder button:hover { background: #3ced6a; }
+
+.sm-queue-item { padding: 10px; border-radius: 8px; background: #18181b; margin-bottom: 10px; border: 1px solid #27272a; display: flex; gap: 12px; cursor: pointer; transition: 0.2s; align-items: center; }
+.sm-queue-item:hover { border-color: #3f3f46; }
+.sm-queue-item.active { border-color: #a855f7; background: rgba(168, 85, 247, 0.1); }
+.sm-queue-item.done { border-color: #30d158; }
+.sm-queue-item.skipped { opacity: 0.4; filter: grayscale(1); }
+.sm-queue-item.hidden { display: none; }
+.sm-thumb { width: 80px; height: 45px; border-radius: 4px; object-fit: cover; background: #27272a; flex-shrink: 0; }
+.sm-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sm-title { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-status { font-size: 11px; color: #a1a1aa; }
+.sm-actions { display: flex; gap: 5px; }
+.sm-icon-btn { background: none; border: none; color: #888; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 14px; }
+.sm-icon-btn:hover { background: #3f3f46; color: #fff; }
+.sm-icon-btn.delete:hover { color: #ef4444; }
+
+/* Modals */
+#sm-modal-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; z-index: 100; }
+.sm-modal-content { background: #18181b; padding: 30px; border-radius: 12px; border: 1px solid #27272a; width: 600px; max-height: 90vh; overflow-y: auto; }
+.sm-modal-content h3 { margin-top: 0; color: #a855f7; border-bottom: 1px solid #27272a; padding-bottom: 10px; }
+.sm-form-group { margin-bottom: 15px; }
+.sm-form-group label { display: block; font-size: 12px; color: #a1a1aa; margin-bottom: 5px; font-weight: bold;}
+.sm-input { width: 100%; padding: 10px; background: #0f0f11; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; }
+.sm-modal-actions { display: flex; gap: 10px; margin-top: 25px; }
+.sm-tabs { display: flex; border-bottom: 1px solid #27272a; margin-bottom: 15px; }
+.sm-tab { padding: 10px 20px; cursor: pointer; color: #a1a1aa; border-bottom: 2px solid transparent; font-weight: bold; }
+.sm-tab.active { color: #a855f7; border-bottom: 2px solid #a855f7; }
+.sm-tab-content { display: none; }
+.sm-tab-content.active { display: block; }
+
+/* ── Interactive Diagram Placeholders ── */
+.sm-diagram-wrapper { border: 2px dashed #a855f7; background: rgba(168, 85, 247, 0.05); padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; }
+.sm-diagram-desc { color: #a855f7; font-weight: bold; margin-bottom: 10px; }
+.sm-diagram-actions { display: flex; justify-content: center; gap: 10px; }
+.sm-diagram-btn { padding: 6px 12px; font-size: 12px; background: #27272a; border: 1px solid #a855f7; color: #fff; border-radius: 4px; cursor: pointer; }
+.sm-diagram-btn:hover { background: #a855f7; }
+.sm-diagram-gallery { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-top: 10px; }
+
+/* ── Native Print (PDF Export) Magic ── */
+@media print {
+  body * { visibility: hidden; }
+  #sm-os-root { background: white !important; }
+  #sm-studio, #sm-studio * { visibility: visible; }
+  #sm-studio { position: absolute; left: 0; top: 0; width: 100%; height: auto; border: none; background: white; color: black; }
+  .sm-header, #sm-engine, .sm-diagram-wrapper { display: none !important; }
+  #sm-editor { color: black; padding: 0; overflow: visible; font-family: 'Times New Roman', serif; }
+  .sm-timestamp-link { color: black; text-decoration: none; background: none; }
+}

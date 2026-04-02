@@ -1,145 +1,39 @@
-# ⚡ ScrapeMind — Chrome Extension
+# 🧠 SmartNotes Pro: AI-Powered Contextual Workspace & LaTeX Compiler
 
-Scrape YouTube transcripts and LLM responses in one click.
+SmartNotes Pro is a next-generation browser extension and dedicated rendering engine that transforms web content, YouTube lectures, and scattered articles into gorgeous, textbook-quality PDF notes. 
 
----
+Built for high-performance learners, developers, and researchers, SmartNotes Pro doesn't just summarize—it analyzes context, captures precise visual timestamps, and compiles perfectly formatted LaTeX documents on the fly.
 
-## Supported Sources
+## 🔥 Elite Features
 
-| Source | What it scrapes |
-|--------|----------------|
-| YouTube (video) | Full timestamped transcript |
-| YouTube (playlist) | All video transcripts in background |
-| ChatGPT | AI-only responses |
-| Gemini | AI-only responses |
-| Claude | AI-only responses |
-| Perplexity | AI-only responses |
-| Copilot | AI-only responses |
+* **Adaptive AI Learning Modes:**
+  * 🎯 **Exam Prep:** Extracts high-yield formulas, PYQs, and fast-revision bullet points.
+  * 💡 **Skill Gain:** Builds intuition with step-by-step logic, code progressions, and practical analogies.
+  * 🔬 **Research:** Dives into theoretical nuances, historical context, and critical edge cases.
+* **Continuous Rolling Context:** Our optimized 5-minute chunking algorithm ensures the LLM never loses the plot. It seamlessly stitches long lectures together without redundant "clumping" or amnesia.
+* **Precision Timestamp & Diagram Capture:** Snap a frame from a video, and the extension automatically injects the exact timestamp and visual context into your notes.
+* **Context-Aware Inline Editing:** Highlight a specific paragraph and tell the AI to "make it perfect." The engine reads the surrounding paragraphs to ensure the rewritten text flawlessly matches your document's tone and structure.
+* **Dedicated LaTeX Rendering Engine:** Bypasses clunky browser PDF printers. Your notes are fired to a standalone microservice, compiled through professional LaTeX templates, and returned as a gorgeous, publication-ready PDF.
+* **Bring Your Own Key (BYOK):** Zero hidden subscription fees. Securely plug in your own LLM API key directly into local browser storage.
 
-## Export Options
-- **Copy** — clipboard
-- **Save JSON** — structured with timestamps, titles, metadata
-- **Save TXT** — human-readable with timestamps
-- **Send to API** — POST to your own backend (URL persisted between sessions)
+## 🚀 Architecture overview
 
----
+This system is decoupled for maximum performance:
+1. **The Client (Browser Extension):** A lightweight, zero-dependency extension that handles UI, video scraping, API key management, and LLM orchestration.
+2. **The Compiler (Python Microservice):** A standalone API that ingests raw Markdown, processes it via Pandoc/LaTeX, and returns a compiled PDF.
 
-## Installation (Developer Mode)
+## 🛠️ Installation & Setup
 
-1. Open Chrome → `chrome://extensions/`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the `extension/` folder
+### Part 1: Load the Extension (No Backend Required for Generation)
+1. Download `smartnotes-extension.zip` from the Releases tab and extract it.
+2. Open Chrome/Edge/Brave and navigate to `chrome://extensions/`.
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select the extracted folder.
+5. Click the extension icon, paste your API key, and select your Learning Mode!
 
-That's it. No build step required.
-
----
-
-## How to Use
-
-### YouTube Video
-1. Open any YouTube video
-2. Click the ⚡ ScrapeMind icon in the toolbar
-3. Click **Scrape This Video**
-4. Export via Copy / JSON / TXT / API
-
-> ⚠ Video must have captions/subtitles enabled. Auto-generated captions work too.
-
-### YouTube Playlist
-1. Open a YouTube playlist page (`youtube.com/playlist?list=...`)
-   OR open any video that's part of a playlist
-2. Click ⚡ ScrapeMind
-3. Click **Scrape Full Playlist**
-4. Scraping runs in the background — you can minimize the popup
-5. Re-open the popup to see progress and download results when done
-
-> Large playlists (100+ videos) may take a few minutes. A 500ms delay between
-> requests is built in to avoid rate-limiting.
-
-### LLM Sites (ChatGPT / Gemini / Claude / Perplexity / Copilot)
-1. Open a chat conversation
-2. Click ⚡ ScrapeMind
-3. Choose:
-   - **Scrape Last Response** — just the final AI reply
-   - **Scrape All AI Responses** — entire conversation (AI turns only)
-4. Export as needed
-
----
-
-## JSON Output Format
-
-### YouTube Video
-```json
-{
-  "videoId": "abc123",
-  "title": "Video Title",
-  "channel": "Channel Name",
-  "duration": "12:34",
-  "transcript": [
-    { "startMs": 0, "durationMs": 3200, "timestamp": "0:00", "text": "Hello everyone..." }
-  ],
-  "fullText": "Hello everyone ..."
-}
-```
-
-### YouTube Playlist
-```json
-{
-  "done": true,
-  "total": 15,
-  "scraped": 14,
-  "errors": [{ "videoId": "xyz", "error": "No captions available" }],
-  "videos": [ /* array of video objects above */ ]
-}
-```
-
-### LLM Response
-```json
-{
-  "platform": "chatgpt",
-  "mode": "last",
-  "responses": [
-    { "index": 3, "text": "Sure! Here's the answer..." }
-  ]
-}
-```
-
----
-
-## Your Backend API
-
-When you click **⚡ API**, the entire JSON object above is POSTed to your endpoint:
-
-```
-POST https://your-server.com/ingest
-Content-Type: application/json
-
-{ ...scraped data... }
-```
-
-The API URL is saved locally so you don't have to re-enter it.
-
----
-
-## File Structure
-
-```
-extension/
-├── manifest.json       # MV3 config, permissions, host_permissions
-├── background.js       # Service worker: YouTube fetch, playlist loop
-├── popup.html          # UI shell
-├── popup.css           # Adaptive dark/light styles
-├── popup.js            # UI logic, export, polling
-└── content/
-    └── llm.js          # DOM scraper for all LLM sites
-```
-
----
-
-## Notes & Limitations
-
-- **No YouTube API key needed** — transcripts are fetched directly from YouTube's internal caption endpoint
-- **Playlist cap** — YouTube only includes ~100 videos in the initial page load. Playlists beyond that require scrolling/pagination (not yet implemented)
-- **LLM DOM selectors** — these platforms update their UI frequently. If scraping stops working on a site, the selectors in `content/llm.js` → `CONFIGS` need updating
-- **No captions** — some YouTube videos have no captions at all (live streams, auto-cap disabled). Nothing can be done in that case
-- **Rate limiting** — a 500–1000ms random delay is applied between playlist video fetches to avoid YouTube rate limits
+### Part 2: Run the LaTeX Microservice (For PDF Exports)
+*Requires Python 3.8+ and Pandoc/TexLive installed on your host machine.*
+```bash
+cd pdf-microservice
+pip install fastapi uvicorn pydantic
+uvicorn main:app --reload

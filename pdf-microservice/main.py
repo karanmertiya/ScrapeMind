@@ -30,12 +30,12 @@ async def generate_pdf(payload: MarkdownPayload):
     input_path = os.path.join(temp_dir, "input.html")
     pdf_path = os.path.join(temp_dir, "output.pdf")
 
-    # Write the payload (which is actually HTML from editor.innerHTML) to a file
+    # Write the payload (HTML from editor.innerHTML) to a file
     with open(input_path, "w", encoding="utf-8") as f:
         f.write(payload.markdown)
 
     try:
-        # Crucial Fix: Tell Pandoc it is reading an HTML file with the '-f html' flag
+        # Tell Pandoc it is reading an HTML file with the '-f html' flag
         command = [
             "pandoc",
             input_path,

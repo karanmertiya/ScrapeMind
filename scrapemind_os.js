@@ -46,6 +46,7 @@ async function launchOS(videos) {
             <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
             <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
             <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export PDF</button>
+            <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit Selection</button>
             <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate Notes</button>
             <button class="sm-btn" id="sm-close-os">Exit</button>
           </div>
@@ -159,6 +160,77 @@ async function launchOS(videos) {
   document.getElementById('sm-toggle-time').onchange = (e) => { showTimestamps = e.target.checked; renderWorkspace(currentViewedVideo); };
   document.getElementById('sm-editor').addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML; });
   
+  // ── Inline "Make it Perfect" Editor ──
+  document.getElementById('sm-btn-edit').onclick = async () => {
+    const selection = window.getSelection();
+    const highlightedText = selection.toString().trim();
+    
+    if (!highlightedText) {
+        alert("Please highlight the text you want to edit first.");
+        return;
+    }
+
+    const instruction = prompt("How should the AI rewrite this? (e.g., 'Make it shorter', 'Format as a list', 'Fix clumping')");
+    if (!instruction) return;
+
+    if (!settings.groqKey) {
+        alert("Please set your Groq API key in the Meta settings first.");
+        return;
+    }
+
+    const editor = document.getElementById('sm-editor');
+    const originalBtnText = document.getElementById('sm-btn-edit').innerText;
+    document.getElementById('sm-btn-edit').innerText = "⏳ Rewriting...";
+
+    const promptText = `You are a precision editing assistant. 
+    User Instruction: "${instruction}"
+    
+    Target Text to Rewrite:
+    "${highlightedText}"
+    
+    Return ONLY the perfectly rewritten text formatted in HTML. Do not include any other commentary.`;
+
+    try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST", 
+            headers: { "Authorization": `Bearer ${settings.groqKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile", 
+                messages: [{ role: "user", content: promptText }], 
+                temperature: 0.2
+            })
+        });
+        
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        
+        let newText = data.choices[0].message.content.replace(/```html|```/g, '');
+        
+        // Replace the highlighted text in the editor
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = newText;
+        
+        // Insert the new nodes
+        const frag = document.createDocumentFragment();
+        let node, lastNode;
+        while ((node = tempDiv.firstChild)) {
+            lastNode = frag.appendChild(node);
+        }
+        range.insertNode(frag);
+        
+        // Save state
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editor.innerHTML;
+
+    } catch (e) {
+        alert(`Edit failed: ${e.message}`);
+    } finally {
+        document.getElementById('sm-btn-edit').innerText = originalBtnText;
+    }
+  };
+
   // ── Advanced LaTeX PDF Export via Microservice ──
   document.getElementById('sm-btn-export').onclick = async () => {
     const exportBtn = document.getElementById('sm-btn-export');
@@ -177,7 +249,6 @@ async function launchOS(videos) {
     exportBtn.disabled = true;
 
     try {
-        // MUST include /generate-pdf at the end!
         const response = await fetch('https://scrapemind-yj4c.onrender.com/generate-pdf', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

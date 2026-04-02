@@ -11,9 +11,9 @@ let projectMode = "skillgain"; // Locks in the mode for the whole project
 
 // ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
-  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).\n\nConclude with 3 Previous Year Question (PYQ) style exam problems.",
-  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).\n\nEnd the notes with 2 technical interview/OA round questions.",
-  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets. Use <br><br> before EVERY <h2>, <h3>, and <ul> to prevent text clumping. Format code blocks using standard markdown triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
+  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
+  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
+  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
 };
 
 let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', syllabus: '', prompts: { ...defaultPrompts } };
@@ -137,6 +137,10 @@ async function launchOS(videos) {
 
       document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
       document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
+      
+      // Wake up the Render Microservice early
+      fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
+
       buildQueueUI(); 
       processVideo(orderedQueue[0], 0); 
   };
@@ -161,7 +165,7 @@ async function launchOS(videos) {
   const editorNode = document.getElementById('sm-editor');
   editorNode.addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML; });
   
-  // ── Event Delegation for Diagram Buttons (Canvas removed) ──
+  // ── Event Delegation for Diagram Buttons ──
   editorNode.addEventListener('click', (e) => {
     const target = e.target;
     if (!target.classList.contains('sm-diagram-btn')) return;
@@ -199,6 +203,18 @@ async function launchOS(videos) {
             img.src = imgUrl;
             gallery.appendChild(img);
         }
+    }
+    else if (target.classList.contains('sm-action-capture')) {
+        const v = document.querySelector('video');
+        if (!v) { alert("Video not playing."); return; }
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+            canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+            const img = document.createElement('img');
+            img.src = canvas.toDataURL('image/jpeg', 0.8);
+            gallery.appendChild(img);
+        } catch(err) { alert("Could not capture frame."); }
     }
     else if (target.classList.contains('sm-action-dismiss')) {
         wrapper.remove();
@@ -260,32 +276,29 @@ async function launchOS(videos) {
     }
   };
 
-  // ── Advanced LaTeX PDF Export via Microservice (With UI Dissolver) ──
+  // ── Advanced LaTeX PDF Export via Microservice (Fixes Image Crashes) ──
   document.getElementById('sm-btn-export').onclick = async () => {
     const exportBtn = document.getElementById('sm-btn-export');
     
     // 1. Clone the editor so we don't ruin the live user interface
     const cloneEditor = editorNode.cloneNode(true);
     
-    // 2. Clean up Diagram Wrappers (Dissolve the UI for PDF Export)
+    // 2. Unblur any solutions so they show up correctly in the PDF
+    cloneEditor.querySelectorAll('.sm-blurred-text').forEach(el => {
+        el.style.filter = 'none';
+    });
+
+    // 3. Remove Images to prevent Pandoc 500 crashes, leaving just the descriptive placeholder text
     const wrappers = cloneEditor.querySelectorAll('.sm-diagram-wrapper');
     wrappers.forEach(w => {
         const descEl = w.querySelector('.sm-diagram-desc');
         const desc = descEl ? descEl.getAttribute('data-desc') : "";
-        const galleryHTML = w.querySelector('.sm-diagram-gallery').innerHTML;
-        
-        // If there are no images in the gallery, remove the whole block completely
-        if (!galleryHTML.trim() || !galleryHTML.includes('<img')) {
-            w.remove();
-        } else {
-            // Otherwise, replace the ugly wrapper and buttons with a clean, print-friendly div
-            const cleanHTML = `
-                <div style="text-align:center; margin: 25px 0;">
-                    <strong style="color: #666; font-size: 14px;">Figure: ${desc}</strong><br><br>
-                    ${galleryHTML}
-                </div><br>`;
-            w.outerHTML = cleanHTML;
-        }
+        const cleanHTML = `
+            <div style="text-align:center; margin: 25px 0; padding: 10px; border: 1px dashed #666;">
+                <strong style="color: #444; font-size: 14px;">[Diagram Placeholder: ${desc}]</strong><br>
+                <span style="font-size: 12px; color: #888;">(Image omitted to prevent LaTeX compilation errors)</span>
+            </div><br>`;
+        w.outerHTML = cleanHTML;
     });
 
     const contentToExport = `<h1>${projectName}</h1><br><br>` + cloneEditor.innerHTML; 
@@ -445,20 +458,31 @@ function buildQueueUI() {
   document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
-// ── Helper: Format Markdown to HTML (Fixes Code Clumping Safely) ──
+// ── Helper: Format Markdown to HTML (Fixes Code & Lists Clumping) ──
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
     
-    // Safely extract code blocks without triggering internal markdown parser crashes
+    // Parse the Blurred Practice Solutions
+    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, 
+        '<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click to Reveal)</strong><div class="sm-blurred-text" style="filter: blur(6px); cursor: pointer; user-select: none;" onclick="this.style.filter=\'none\'; this.style.cursor=\'text\';">$1</div></div>'
+    );
+
+    // Safely extract code blocks
     cleanText = cleanText.replace(/\x60\x60\x60(?:\w+)?\n([\s\S]*?)\x60\x60\x60/g, '<pre style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>$1</code></pre>');
 
-    cleanText = cleanText
-        .replace(/^### (.*$)/gim, '<br><br><h3>$1</h3>')
-        .replace(/^## (.*$)/gim, '<br><br><h2>$1</h2>')
-        .replace(/^# (.*$)/gim, '<br><br><h1>$1</h1>')
-        .replace(/^\> (.*$)/gim, '<blockquote style="border-left: 3px solid #a855f7; padding-left: 10px; margin: 10px 0;">$1</blockquote>')
-        .replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
-        .replace(/^- (.*$)/gim, '<ul style="margin-bottom: 10px;"><li>$1</li></ul>'); 
+    cleanText = cleanText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    cleanText = cleanText.replace(/^### (.*$)/gim, '<br><br><h3>$1</h3>');
+    cleanText = cleanText.replace(/^## (.*$)/gim, '<br><br><h2>$1</h2>');
+    cleanText = cleanText.replace(/^# (.*$)/gim, '<br><br><h1>$1</h1>');
+    cleanText = cleanText.replace(/^\> (.*$)/gim, '<blockquote style="border-left: 3px solid #a855f7; padding-left: 10px; margin: 10px 0;">$1</blockquote>');
+    
+    // Parse Unordered Lists (*)
+    cleanText = cleanText.replace(/^\s*[\*\-]\s+(.*$)/gim, '<ul style="margin: 5px 0 5px 20px; padding: 0;"><li>$1</li></ul>');
+    cleanText = cleanText.replace(/<\/ul>\s*<ul[^>]*>/g, ''); 
+
+    // Parse Ordered Lists (1., 2.)
+    cleanText = cleanText.replace(/^\s*\d+\.\s+(.*$)/gim, '<ol style="margin: 5px 0 5px 20px; padding: 0;"><li>$1</li></ol>');
+    cleanText = cleanText.replace(/<\/ol>\s*<ol[^>]*>/g, ''); 
         
     return cleanText;
 }
@@ -472,23 +496,49 @@ async function triggerAINotesChunked() {
   const originalHTML = editor.innerHTML;
   
   const segments = playlistState[currentViewedVideo].transcript;
+  
+  editor.innerHTML = `<h3>🤖 Initializing AI...</h3><p>Analyzing video transcript to build custom prompt...</p>`;
+  
+  // ── Transcript Pre-Analyzer (Builds Custom Prompt) ──
+  let customInstruction = "";
+  try {
+      const sampleTranscript = segments.slice(0, 40).map(t => t.text).join(' ');
+      const prePrompt = `Analyze this video transcript excerpt and write a strict 2-sentence instruction on what specific themes, concepts, or formulas to prioritize when taking notes for this specific topic. Return ONLY the instructions.\n\nTranscript:\n${sampleTranscript}`;
+      
+      const preRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST", headers: { "Authorization": `Bearer ${settings.groqKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prePrompt }], temperature: 0.3 })
+      });
+      const preData = await preRes.json();
+      customInstruction = preData.choices[0].message.content;
+  } catch(e) { console.log("Pre-analysis failed, using defaults."); }
+
   const chunkSize = 80; 
   const chunks = [];
   for (let i = 0; i < segments.length; i += chunkSize) chunks.push(segments.slice(i, i + chunkSize));
 
-  let finalNotesHTML = `<h2>🧠 AI Notes: ${playlistState[currentViewedVideo].title} (${mode.toUpperCase()} Mode)</h2><br><br>`;
-  editor.innerHTML = `<h3>🤖 Initializing AI... Segmenting video into ${chunks.length} parts.</h3>`;
+  let finalNotesHTML = `<h2>🧠 AI Notes: ${playlistState[currentViewedVideo].title} (${mode.toUpperCase()} Mode)</h2>`;
+  if (customInstruction) finalNotesHTML += `<p style="color:#a855f7;"><i>Custom Focus: ${customInstruction}</i></p><br><br>`;
+  
+  editor.innerHTML = `<h3>🤖 Segmenting video into ${chunks.length} parts...</h3>`;
 
   let basePrompt = settings.prompts[mode];
-  if (settings.syllabus) basePrompt += `\n\nCRITICAL CONTEXT / SYLLABUS TO FOLLOW:\n${settings.syllabus}`;
+  if (customInstruction) basePrompt += `\n\nCRITICAL CONTEXT FOR THIS VIDEO:\n${customInstruction}`;
+  if (settings.syllabus) basePrompt += `\n\nSYLLABUS TO FOLLOW:\n${settings.syllabus}`;
 
   for (let c = 0; c < chunks.length; c++) {
     editor.innerHTML += `<p>⏳ Analyzing Part ${c + 1} of ${chunks.length}...</p>`;
     
+    const isLastChunk = (c === chunks.length - 1);
     const chunkText = chunks[c].map(t => t.text).join(' ');
-    const chunkPrompt = c === 0 
+    let chunkPrompt = c === 0 
       ? `${basePrompt}\n\nThis is PART 1 of the transcript. Begin formatting the structured notes.` 
-      : `${basePrompt}\n\nThis is PART ${c + 1} of the transcript. Continue the structured notes seamlessly from the previous concepts. Do not repeat introductory headers.`;
+      : `${basePrompt}\n\nThis is PART ${c + 1} of the transcript. Continue the structured notes seamlessly. Do not repeat introductory headers.`;
+
+    // Trigger blurred solutions on the final chunk
+    if (isLastChunk) {
+        chunkPrompt += "\n\nCRITICAL: Since this is the final part, conclude with 3 Practice Questions. IMMEDIATELY follow them with their solutions wrapped EXACTLY in [[SOLUTION_START]] and [[SOLUTION_END]] tags.";
+    }
 
     try {
       let aiResponse = "";
@@ -517,7 +567,7 @@ async function triggerAINotesChunked() {
     }
   }
 
-  // Convert Diagram Tags to the Interactive UI with AI Generation Button (Canvas Removed)
+  // Convert Diagram Tags to the Interactive UI with AI Generation Button
   finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(?:\[([\d:]+)\])?\s*(.*?)\]\]/g, (match, timeStr, desc) => {
     let seekButtonHtml = "";
     if (timeStr) {
@@ -530,6 +580,7 @@ async function triggerAINotesChunked() {
       <div class="sm-diagram-desc" data-desc="${desc.replace(/"/g, '&quot;')}">📸 Requested Diagram: ${desc}</div>
       <div class="sm-diagram-actions" style="flex-wrap: wrap;">
         ${seekButtonHtml}
+        <button class="sm-diagram-btn sm-action-capture">📸 Capture Frame</button>
         <button class="sm-diagram-btn sm-action-generate">🎨 Generate AI Image</button>
         <button class="sm-diagram-btn sm-action-search">🔍 Search Web</button>
         <button class="sm-diagram-btn sm-action-paste">🔗 Paste Image URL</button>

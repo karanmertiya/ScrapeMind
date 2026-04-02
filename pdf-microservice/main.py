@@ -36,6 +36,7 @@ async def generate_pdf(payload: MarkdownPayload):
 
     try:
         # Tell Pandoc it is reading an HTML file with the '-f html' flag
+        # REMOVED: -V mainfont=Helvetica to prevent Linux font crashes
         command = [
             "pandoc",
             input_path,
@@ -43,7 +44,6 @@ async def generate_pdf(payload: MarkdownPayload):
             "-o", pdf_path,
             "--pdf-engine=xelatex",
             "-V", "geometry:margin=1in",
-            "-V", "mainfont=Helvetica", 
             "--toc" 
         ]
         

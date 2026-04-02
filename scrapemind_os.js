@@ -177,7 +177,7 @@ async function launchOS(videos) {
     exportBtn.disabled = true;
 
     try {
-        const response = await fetch('https://scrapemind-yj4c.onrender.com/generate-pdf', {
+        const response = await fetch('https://scrapemind-yj4c.onrender.com', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ markdown: contentToExport }) 

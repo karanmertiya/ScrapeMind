@@ -2,12 +2,14 @@
 import os
 import subprocess
 import tempfile
+import base64
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="SmartNotes LaTeX PDF Compiler")
+app = FastAPI(title="SmartNotes Backend API")
 
 # Allow the browser extension to make requests to this API
 app.add_middleware(
@@ -20,6 +22,33 @@ app.add_middleware(
 
 class MarkdownPayload(BaseModel):
     markdown: str
+
+class ImagePayload(BaseModel):
+    prompt: str
+    account_id: str
+    api_token: str
+
+@app.post("/generate-image")
+async def generate_image(payload: ImagePayload):
+    if not payload.prompt or not payload.account_id or not payload.api_token:
+        raise HTTPException(status_code=400, detail="Missing required parameters")
+        
+    url = f"https://api.cloudflare.com/client/v4/accounts/{payload.account_id}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0"
+    headers = {"Authorization": f"Bearer {payload.api_token}"}
+    cf_payload = {"prompt": payload.prompt}
+    
+    try:
+        response = requests.post(url, headers=headers, json=cf_payload)
+        response.raise_for_status()
+        
+        # Convert raw Cloudflare image bytes to Base64 for the browser
+        img_b64 = base64.b64encode(response.content).decode('utf-8')
+        return {"image_base64": img_b64}
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Cloudflare Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate image: {str(e)}")
+
 
 @app.post("/generate-pdf")
 async def generate_pdf(payload: MarkdownPayload):
@@ -35,8 +64,6 @@ async def generate_pdf(payload: MarkdownPayload):
         f.write(payload.markdown)
 
     try:
-        # Tell Pandoc it is reading an HTML file with the '-f html' flag
-        # REMOVED: -V mainfont=Helvetica to prevent Linux font crashes
         command = [
             "pandoc",
             input_path,
@@ -47,7 +74,7 @@ async def generate_pdf(payload: MarkdownPayload):
             "--toc" 
         ]
         
-        process = subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
 
         return FileResponse(
             path=pdf_path, 

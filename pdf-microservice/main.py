@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 import base64
 import requests
+import re
+import uuid
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +13,6 @@ from pydantic import BaseModel
 
 app = FastAPI(title="SmartNotes Backend API")
 
-# Allow the browser extension to make requests to this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -28,6 +29,29 @@ class ImagePayload(BaseModel):
     account_id: str
     api_token: str
 
+def process_base64_images(html_content, temp_dir):
+    """
+    Finds Base64 images in HTML, saves them as actual files, 
+    and replaces the src. This prevents XeLaTeX from crashing.
+    """
+    def replacer(match):
+        mime_type = match.group(1)
+        b64_data = match.group(2)
+        ext = "png" if "png" in mime_type else "jpg"
+        filename = f"img_{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(temp_dir, filename)
+        try:
+            with open(filepath, "wb") as fh:
+                fh.write(base64.b64decode(b64_data))
+            return f'src="{filepath}"'
+        except Exception as e:
+            print(f"Failed to decode image: {e}")
+            return 'src=""'
+
+    pattern = re.compile(r'src="data:image/([a-zA-Z0-9]+);base64,([^"]+)"')
+    return pattern.sub(replacer, html_content)
+
+
 @app.post("/generate-image")
 async def generate_image(payload: ImagePayload):
     if not payload.prompt or not payload.account_id or not payload.api_token:
@@ -41,7 +65,6 @@ async def generate_image(payload: ImagePayload):
         response = requests.post(url, headers=headers, json=cf_payload)
         response.raise_for_status()
         
-        # Convert raw Cloudflare image bytes to Base64 for the browser
         img_b64 = base64.b64encode(response.content).decode('utf-8')
         return {"image_base64": img_b64}
         
@@ -56,12 +79,15 @@ async def generate_pdf(payload: MarkdownPayload):
         raise HTTPException(status_code=400, detail="Content is empty")
 
     temp_dir = tempfile.mkdtemp()
+    
+    # Pre-process the HTML to save images locally
+    safe_html = process_base64_images(payload.markdown, temp_dir)
+
     input_path = os.path.join(temp_dir, "input.html")
     pdf_path = os.path.join(temp_dir, "output.pdf")
 
-    # Write the payload (HTML from editor.innerHTML) to a file
     with open(input_path, "w", encoding="utf-8") as f:
-        f.write(payload.markdown)
+        f.write(safe_html)
 
     try:
         command = [
@@ -71,6 +97,7 @@ async def generate_pdf(payload: MarkdownPayload):
             "-o", pdf_path,
             "--pdf-engine=xelatex",
             "-V", "geometry:margin=1in",
+            "--highlight-style=tango", # Adds beautiful syntax highlighting for code
             "--toc" 
         ]
         

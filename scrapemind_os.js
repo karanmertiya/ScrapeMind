@@ -11,9 +11,9 @@ let projectMode = "skillgain";
 
 // ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
-  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent text clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
-  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent text clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
-  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent text clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
+  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
+  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
+  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
 };
 
 let settings = { llmProvider: 'groq', groqKey: '', groqKey2: '', geminiKey: '', cfAccount: '', cfToken: '', syllabus: '', prompts: { ...defaultPrompts } };
@@ -31,6 +31,11 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'LAUNCH_OS' && !isRunning) { isRunning = true; launchOS(msg.videos); }
 });
 
+// ── Bulletproof DOM Helpers (Prevents Null Crashes) ──
+function safeBind(id, event, handler) { const el = document.getElementById(id); if (el) el.addEventListener(event, handler); }
+function safeSet(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
+function safeGet(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
 async function launchOS(videos) {
   videos.forEach(v => {
     playlistState[v.id] = { id: v.id, title: v.title, status: 'waiting', transcript: [], comments: [], userEdits: "" };
@@ -39,7 +44,7 @@ async function launchOS(videos) {
 
   const osHTML = `
     <style>
-        /* Interactive Wizard Cards */
+        /* 3-Card Wizard Styles */
         .sm-mode-card { flex: 1; background: #18181b; border: 2px solid #3f3f46; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s ease; text-align: left; position: relative; overflow: hidden; }
         .sm-mode-card:hover { border-color: #a855f7; transform: translateY(-4px); box-shadow: 0 8px 20px rgba(168,85,247,0.15); }
         .sm-mode-card.active-mode { border-color: #a855f7; background: rgba(168,85,247,0.05); }
@@ -47,13 +52,13 @@ async function launchOS(videos) {
         .sm-card-icon { font-size: 32px; margin-bottom: 12px; display: block; }
         .sm-card-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 8px; }
         .sm-card-desc { font-size: 13px; color: #a1a1aa; line-height: 1.4; }
-        
-        /* Tab Enforcer Warning */
-        #sm-tab-warning { display: none; background: #ef4444; color: white; text-align: center; padding: 8px; font-weight: bold; font-size: 13px; z-index: 9999; border-bottom: 1px solid #b91c1c; }
     </style>
     
     <div id="sm-os-root" style="flex-direction: column;">
-      <div id="sm-tab-warning">⚠️ DO NOT SWITCH TABS! YouTube throttles background pages. Please stay on this tab while videos are extracting.</div>
+      <div id="sm-tab-warning" style="display: none; width: 100%; background: #ef4444; color: white; text-align: center; padding: 12px; font-weight: bold; font-size: 14px; z-index: 9999; border-bottom: 2px solid #b91c1c; text-transform: uppercase; letter-spacing: 1px;">
+          ⚠️ Extraction Warning: YouTube throttles background tabs. Keep this tab open and visible until the queue finishes extracting!
+      </div>
+      
       <div style="display:flex; flex:1; height: 100%; overflow: hidden;">
           <div id="sm-studio">
             <div class="sm-header">
@@ -62,16 +67,16 @@ async function launchOS(videos) {
                 <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
                 <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
                 
-                <div style="display:flex; border-radius:6px; overflow:hidden; border: 1px solid #30d158;">
-                    <button class="sm-btn" id="sm-btn-export" style="background:#30d158; color:black; border-radius:0; border:none; border-right:1px solid rgba(0,0,0,0.2);">🖨️ Export</button>
-                    <button class="sm-btn" id="sm-btn-export-all" style="background:#28b64c; color:black; border-radius:0; border:none; padding: 8px;" title="Export All">All</button>
+                <div style="display:flex; border-radius:6px; overflow:hidden; border: 2px solid #30d158; align-items: stretch;">
+                    <button class="sm-btn" id="sm-btn-export" style="background:#30d158; color:black; border-radius:0; border:none; padding: 8px 15px; font-weight: bold; border-right:2px solid #1a8f38;">🖨️ Export PDF</button>
+                    <button class="sm-btn" id="sm-btn-export-all" style="background:#28b64c; color:black; border-radius:0; border:none; padding: 8px 12px; font-weight: bold; cursor: pointer;" title="Export Full Course to PDF">Export ALL</button>
                 </div>
 
                 <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit</button>
                 
-                <div style="display:flex; border-radius:6px; overflow:hidden; border: 1px solid #a855f7;">
-                    <button class="sm-btn" id="sm-btn-ai" style="background:#a855f7; color:white; border-radius:0; border:none; border-right:1px solid rgba(0,0,0,0.2);">✨ Generate</button>
-                    <button class="sm-btn" id="sm-btn-ai-all" style="background:#9333ea; color:white; border-radius:0; border:none; padding: 8px;" title="Generate All">All</button>
+                <div style="display:flex; border-radius:6px; overflow:hidden; border: 2px solid #a855f7; align-items: stretch;">
+                    <button class="sm-btn" id="sm-btn-ai" style="background:#a855f7; color:white; border-radius:0; border:none; padding: 8px 15px; font-weight: bold; border-right:2px solid #7e22ce;">✨ Generate Notes</button>
+                    <button class="sm-btn" id="sm-btn-ai-all" style="background:#9333ea; color:white; border-radius:0; border:none; padding: 8px 12px; font-weight: bold; cursor: pointer;" title="Generate All Videos in Queue">Gen ALL</button>
                 </div>
 
                 <button class="sm-btn" id="sm-close-os">Exit</button>
@@ -90,17 +95,17 @@ async function launchOS(videos) {
                         <div class="sm-mode-card active-mode" data-mode="skillgain">
                             <span class="sm-card-icon">🧠</span>
                             <div class="sm-card-title">SkillGain</div>
-                            <div class="sm-card-desc">Optimized for deep intuition, architectural logic, and technical interview preparation.</div>
+                            <div class="sm-card-desc">Focuses on architectural logic, code intuition, and technical interview prep.</div>
                         </div>
                         <div class="sm-mode-card" data-mode="examprep">
                             <span class="sm-card-icon">📚</span>
                             <div class="sm-card-title">ExamPrep</div>
-                            <div class="sm-card-desc">Extracts high-yield formulas, core theories, and PYQ style patterns for fast revision.</div>
+                            <div class="sm-card-desc">Extracts high-yield formulas, core theories, and PYQ style questions.</div>
                         </div>
                         <div class="sm-mode-card" data-mode="research">
                             <span class="sm-card-icon">🔬</span>
                             <div class="sm-card-title">Research</div>
-                            <div class="sm-card-desc">Academic synthesis, critical analysis, methodology breakdowns, and edge-cases.</div>
+                            <div class="sm-card-desc">Academic synthesis, critical analysis, methodology, and edge-cases.</div>
                         </div>
                     </div>
 
@@ -171,7 +176,7 @@ async function launchOS(videos) {
   document.body.insertAdjacentHTML('beforeend', osHTML);
   document.body.style.overflow = 'hidden';
 
-  // ── Project Initialization Logic (Bullet-Proofed) ──
+  // ── Project Initialization Logic ──
   let selectedMode = 'skillgain';
   document.querySelectorAll('.sm-mode-card').forEach(card => {
       card.onclick = () => {
@@ -181,37 +186,40 @@ async function launchOS(videos) {
       };
   });
 
-  document.getElementById('sm-start-project-btn').onclick = () => {
-      try {
-          const inputName = document.getElementById('sm-init-project-name').value.trim();
-          projectName = inputName || "Untitled Project";
-          projectMode = selectedMode;
-          settings.syllabus = document.getElementById('sm-init-syllabus').value.trim();
-          
-          const displayMode = document.getElementById('sm-display-mode');
+  safeBind('sm-start-project-btn', 'click', () => {
+      projectName = safeGet('sm-init-project-name') || "Untitled Project";
+      projectMode = selectedMode;
+      settings.syllabus = safeGet('sm-init-syllabus');
+      
+      const displayMode = document.getElementById('sm-display-mode');
+      if (displayMode) {
           displayMode.style.display = 'inline-block';
           displayMode.innerText = projectMode.toUpperCase() + ' MODE';
-
-          document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
-          document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
-          
-          fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
-          buildQueueUI(); 
-          runQueueProcessor();
-      } catch (err) {
-          alert("Initialization Error: " + err.message);
       }
-  };
 
-  // ── Tab Focus Enforcer ──
-  document.addEventListener("visibilitychange", () => {
+      const projTitle = document.getElementById('sm-project-title');
+      if (projTitle) projTitle.innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
+      
+      const ed = document.getElementById('sm-editor');
+      if (ed) ed.innerHTML = "Project initialized. Select a video from the queue to begin.";
+      
+      fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
+      buildQueueUI(); 
+      runQueueProcessor();
+  });
+
+  // ── Tab Focus Enforcer Logic ──
+  setInterval(() => {
       const isExtracting = orderedQueue.some(id => playlistState[id].status === 'extracting');
-      if (document.hidden && isExtracting) {
-          document.title = "⚠️ PAUSED - Return to Tab!";
+      const warningEl = document.getElementById('sm-tab-warning');
+      if (isExtracting) {
+          if (document.hidden) { document.title = "⚠️ PAUSED - Return to Tab!"; } else { document.title = "ScrapeMind OS"; }
+          if (warningEl) warningEl.style.display = 'block';
       } else {
           document.title = "ScrapeMind OS";
+          if (warningEl) warningEl.style.display = 'none';
       }
-  });
+  }, 1000);
 
   engineInterval = setInterval(() => {
     const v = document.querySelector('video');
@@ -226,105 +234,107 @@ async function launchOS(videos) {
     }
   }, 100);
 
-  document.getElementById('sm-close-os').onclick = exitOS;
-  document.getElementById('sm-toggle-time').onchange = (e) => { showTimestamps = e.target.checked; renderWorkspace(currentViewedVideo); };
-  
-  const editorNode = document.getElementById('sm-editor');
-  editorNode.addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML; });
-  
-  // ── Event Delegation for Editor ──
-  editorNode.addEventListener('click', (e) => {
-    const target = e.target;
-
-    if (target.classList.contains('sm-blurred-line')) {
-        target.style.filter = 'none';
-        target.style.cursor = 'text';
-        target.classList.remove('sm-blurred-line');
-        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
-        return;
-    }
-
-    if (!target.classList.contains('sm-diagram-btn')) return;
-
-    const wrapper = target.closest('.sm-diagram-wrapper');
-    const gallery = wrapper.querySelector('.sm-diagram-gallery');
-    const desc = wrapper.querySelector('.sm-diagram-desc').getAttribute('data-desc');
-
-    if (target.classList.contains('sm-action-seek')) {
-        const time = target.getAttribute('data-time');
-        const v = document.querySelector('video');
-        if (v) { v.currentTime = parseInt(time); v.muted = false; autoMuteOverride = true; setTimeout(() => autoMuteOverride = false, 8000); }
-    }
-    else if (target.classList.contains('sm-action-search')) {
-        const query = encodeURIComponent(projectName + " " + desc);
-        window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
-    }
-    else if (target.classList.contains('sm-action-upload')) {
-        const fileInput = wrapper.querySelector('.sm-file-upload');
-        fileInput.click();
-        fileInput.onchange = (ev) => {
-            const file = ev.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (readerEvent) => {
-                    const img = document.createElement('img');
-                    img.src = readerEvent.target.result;
-                    gallery.appendChild(img);
-                };
-                reader.readAsDataURL(file);
-            }
-        };
-    }
-    else if (target.classList.contains('sm-action-generate')) {
-        const defaultStylePrompt = `A clean, technical educational diagram showing: ${desc}. Minimalist flat vector style, computer science schematic, white background, no text.`;
-        const userPrompt = prompt("Edit the image generation prompt for Stable Diffusion:", defaultStylePrompt);
-        
-        if (userPrompt) {
-            if (!settings.cfAccount || !settings.cfToken) {
-                alert("Please add your Cloudflare Account ID and Token in the Meta settings first!");
-                return;
-            }
-            target.innerText = "⏳ Generating...";
-            target.disabled = true;
-            
-            fetch('https://scrapemind-yj4c.onrender.com/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: userPrompt, account_id: settings.cfAccount, api_token: settings.cfToken })
-            }).then(res => res.json())
-            .then(data => {
-                if (data.image_base64) {
-                    const img = document.createElement('img');
-                    img.src = "data:image/png;base64," + data.image_base64;
-                    gallery.appendChild(img);
-                } else {
-                    alert("API returned no image data.");
-                }
-            }).catch(err => alert("Cloudflare Generator Error: " + err.message))
-            .finally(() => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; });
-        }
-    }
-    else if (target.classList.contains('sm-action-capture')) {
-        const v = document.querySelector('video');
-        if (!v) { alert("Video not playing."); return; }
-        try {
-            const canvas = document.createElement('canvas');
-            canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-            canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
-            const img = document.createElement('img');
-            img.src = canvas.toDataURL('image/jpeg', 0.8);
-            gallery.appendChild(img);
-        } catch(err) { alert("Could not capture frame."); }
-    }
-    else if (target.classList.contains('sm-action-dismiss')) {
-        wrapper.remove();
-    }
-
-    if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
+  safeBind('sm-close-os', 'click', () => { 
+      document.getElementById('sm-os-root').remove(); 
+      document.body.style.overflow = 'auto'; 
+      clearInterval(engineInterval); 
+      isRunning = false; 
   });
 
+  safeBind('sm-toggle-time', 'change', (e) => { 
+      showTimestamps = e.target.checked; 
+      renderWorkspace(currentViewedVideo); 
+  });
+  
+  const editorNode = document.getElementById('sm-editor');
+  if (editorNode) {
+      editorNode.addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML; });
+      
+      editorNode.addEventListener('click', (e) => {
+        const target = e.target;
+
+        if (!target.classList.contains('sm-diagram-btn')) return;
+
+        const wrapper = target.closest('.sm-diagram-wrapper');
+        const gallery = wrapper.querySelector('.sm-diagram-gallery');
+        const desc = wrapper.querySelector('.sm-diagram-desc').getAttribute('data-desc');
+
+        if (target.classList.contains('sm-action-seek')) {
+            const time = target.getAttribute('data-time');
+            const v = document.querySelector('video');
+            if (v) { v.currentTime = parseInt(time); v.muted = false; autoMuteOverride = true; setTimeout(() => autoMuteOverride = false, 8000); }
+        }
+        else if (target.classList.contains('sm-action-search')) {
+            const query = encodeURIComponent(projectName + " " + desc);
+            window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
+        }
+        else if (target.classList.contains('sm-action-upload')) {
+            const fileInput = wrapper.querySelector('.sm-file-upload');
+            fileInput.click();
+            fileInput.onchange = (ev) => {
+                const file = ev.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (readerEvent) => {
+                        const img = document.createElement('img');
+                        img.src = readerEvent.target.result;
+                        gallery.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+        else if (target.classList.contains('sm-action-generate')) {
+            const defaultStylePrompt = `A clean, technical educational diagram showing: ${desc}. Minimalist flat vector style, computer science schematic, white background, no text.`;
+            const userPrompt = prompt("Edit the image generation prompt for Stable Diffusion:", defaultStylePrompt);
+            
+            if (userPrompt) {
+                if (!settings.cfAccount || !settings.cfToken) {
+                    alert("Please add your Cloudflare Account ID and Token in the Meta settings first!");
+                    return;
+                }
+                target.innerText = "⏳ Generating...";
+                target.disabled = true;
+                
+                fetch('https://scrapemind-yj4c.onrender.com/generate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: userPrompt, account_id: settings.cfAccount, api_token: settings.cfToken })
+                }).then(res => res.json())
+                .then(data => {
+                    if (data.image_base64) {
+                        const img = document.createElement('img');
+                        img.src = "data:image/png;base64," + data.image_base64;
+                        gallery.appendChild(img);
+                    } else {
+                        alert("API returned no image data.");
+                    }
+                }).catch(err => alert("Cloudflare Generator Error: " + err.message))
+                .finally(() => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; });
+            }
+        }
+        else if (target.classList.contains('sm-action-capture')) {
+            const v = document.querySelector('video');
+            if (!v) { alert("Video not playing."); return; }
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+                canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+                const img = document.createElement('img');
+                img.src = canvas.toDataURL('image/jpeg', 0.8);
+                gallery.appendChild(img);
+            } catch(err) { alert("Could not capture frame."); }
+        }
+        else if (target.classList.contains('sm-action-dismiss')) {
+            wrapper.remove();
+        }
+
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
+      });
+  }
+
   // ── Inline "Make it Perfect" Editor ──
-  document.getElementById('sm-btn-edit').onclick = async () => {
+  safeBind('sm-btn-edit', 'click', async () => {
     const selection = window.getSelection();
     const highlightedText = selection.toString().trim();
     if (!highlightedText) { alert("Please highlight the text you want to edit first."); return; }
@@ -334,8 +344,9 @@ async function launchOS(videos) {
 
     if (!settings.groqKey) { alert("Please set your Groq API key."); return; }
 
-    const originalBtnText = document.getElementById('sm-btn-edit').innerText;
-    document.getElementById('sm-btn-edit').innerText = "⏳ Rewriting...";
+    const btn = document.getElementById('sm-btn-edit');
+    const originalBtnText = btn.innerText;
+    btn.innerText = "⏳ Rewriting...";
 
     const promptText = `You are a precision editing assistant. \nUser Instruction: "${instruction}"\n\nTarget Text to Rewrite:\n"${highlightedText}"\n\nReturn ONLY the perfectly rewritten text formatted in HTML. Do not include any other commentary.`;
 
@@ -355,11 +366,11 @@ async function launchOS(videos) {
         range.insertNode(frag);
         
         if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
-    } catch (e) { alert(`Edit failed: ${e.message}`); } finally { document.getElementById('sm-btn-edit').innerText = originalBtnText; }
-  };
+    } catch (e) { alert(`Edit failed: ${e.message}`); } finally { btn.innerText = originalBtnText; }
+  });
 
   // ── Master Generate All Logic ──
-  document.getElementById('sm-btn-ai-all').onclick = async () => {
+  safeBind('sm-btn-ai-all', 'click', async () => {
       if (!settings.groqKey) { document.getElementById('sm-open-settings').click(); return; }
       
       const btn = document.getElementById('sm-btn-ai-all');
@@ -379,7 +390,12 @@ async function launchOS(videos) {
       btn.innerText = originalText;
       btn.disabled = false;
       alert("Finished generating notes for all processed videos in the queue!");
-  };
+  });
+
+  safeBind('sm-btn-ai', 'click', () => {
+      if (!settings.groqKey && !settings.geminiKey) document.getElementById('sm-open-settings').click();
+      else triggerAINotesChunked(); 
+  });
 
   // ── Master PDF Cleanup Helper ──
   function cleanupForPDF(container) {
@@ -399,7 +415,7 @@ async function launchOS(videos) {
   }
 
   // ── Single Export ──
-  document.getElementById('sm-btn-export').onclick = async () => {
+  safeBind('sm-btn-export', 'click', async () => {
     const cloneEditor = editorNode.cloneNode(true);
     cleanupForPDF(cloneEditor);
 
@@ -407,10 +423,10 @@ async function launchOS(videos) {
     if (!contentToExport || contentToExport.includes("Select a video") || contentToExport.includes("Project initialized")) { alert("Generate notes first!"); return; }
 
     await exportPDFPayload(contentToExport, document.getElementById('sm-btn-export'));
-  };
+  });
 
   // ── Master Export All ──
-  document.getElementById('sm-btn-export-all').onclick = async () => {
+  safeBind('sm-btn-export-all', 'click', async () => {
     let combinedHTML = `<h1>${projectName} - Full Course Notes</h1><br><br>`;
     let hasNotes = false;
 
@@ -426,7 +442,7 @@ async function launchOS(videos) {
 
     if (!hasNotes) { alert("No notes to export yet! Generate notes for at least one video."); return; }
     await exportPDFPayload(combinedHTML, document.getElementById('sm-btn-export-all'));
-  };
+  });
 
   async function exportPDFPayload(htmlContent, btnElement) {
       const originalText = btnElement.innerText;
@@ -447,18 +463,18 @@ async function launchOS(videos) {
   }
 
   // ── Queue Adder ──
-  document.getElementById('sm-btn-add').onclick = () => {
-    const urlStr = document.getElementById('sm-add-url').value;
+  safeBind('sm-btn-add', 'click', () => {
+    const urlStr = safeGet('sm-add-url');
     try {
       const url = new URL(urlStr); 
       const vid = url.searchParams.get('v');
       if (vid && !playlistState[vid]) {
         playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], comments: [], userEdits: "" };
-        orderedQueue.push(vid); buildQueueUI(); document.getElementById('sm-add-url').value = "";
+        orderedQueue.push(vid); buildQueueUI(); safeSet('sm-add-url', '');
         runQueueProcessor();
       } else { alert("Video already in queue or invalid ID."); }
-    } catch(e) { alert("Invalid URL."); document.getElementById('sm-add-url').value = ""; }
-  };
+    } catch(e) { alert("Invalid URL."); safeSet('sm-add-url', ''); }
+  });
 
   document.body.addEventListener('keyup', (e) => {
     if (e.target && e.target.id === 'sm-oracle-search') {
@@ -471,60 +487,67 @@ async function launchOS(videos) {
     }
   });
 
-  // Settings UI
-  document.getElementById('sm-open-settings').onclick = () => {
-    document.getElementById('setting-provider').value = settings.llmProvider;
-    document.getElementById('setting-groq').value = settings.groqKey;
-    document.getElementById('setting-groq2').value = settings.groqKey2 || '';
-    document.getElementById('setting-gemini').value = settings.geminiKey;
-    document.getElementById('setting-cf-acc').value = settings.cfAccount || '';
-    document.getElementById('setting-cf-tok').value = settings.cfToken || '';
-    document.getElementById('setting-syllabus-meta').value = settings.syllabus || '';
-    document.getElementById('prompt-examprep').value = settings.prompts.examprep;
-    document.getElementById('prompt-skillgain').value = settings.prompts.skillgain;
-    document.getElementById('prompt-research').value = settings.prompts.research;
-    document.getElementById('sm-modal-bg').style.display = 'flex';
-  };
-  document.getElementById('sm-cancel-settings').onclick = () => document.getElementById('sm-modal-bg').style.display = 'none';
+  // Settings UI Bulletproof Binding
+  safeBind('sm-open-settings', 'click', () => {
+      safeSet('setting-provider', settings.llmProvider);
+      safeSet('setting-groq', settings.groqKey);
+      safeSet('setting-groq2', settings.groqKey2);
+      safeSet('setting-gemini', settings.geminiKey);
+      safeSet('setting-cf-acc', settings.cfAccount);
+      safeSet('setting-cf-tok', settings.cfToken);
+      safeSet('setting-syllabus-meta', settings.syllabus);
+      safeSet('prompt-examprep', settings.prompts.examprep);
+      safeSet('prompt-skillgain', settings.prompts.skillgain);
+      safeSet('prompt-research', settings.prompts.research);
+      
+      const modal = document.getElementById('sm-modal-bg');
+      if (modal) modal.style.display = 'flex';
+  });
+
+  safeBind('sm-cancel-settings', 'click', () => {
+      const modal = document.getElementById('sm-modal-bg');
+      if (modal) modal.style.display = 'none';
+  });
   
-  document.getElementById('tab-api').onclick = () => switchTab('api');
-  document.getElementById('tab-prompts').onclick = () => switchTab('prompts');
+  safeBind('tab-api', 'click', () => switchTab('api'));
+  safeBind('tab-prompts', 'click', () => switchTab('prompts'));
 
   function switchTab(tab) {
     document.querySelectorAll('.sm-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.sm-tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById(`tab-${tab}`).classList.add('active');
-    document.getElementById(`content-${tab}`).classList.add('active');
+    const tEl = document.getElementById(`tab-${tab}`);
+    const cEl = document.getElementById(`content-${tab}`);
+    if (tEl) tEl.classList.add('active');
+    if (cEl) cEl.classList.add('active');
   }
 
-  document.getElementById('sm-save-settings').onclick = () => {
-    settings.llmProvider = document.getElementById('setting-provider').value;
-    settings.groqKey = document.getElementById('setting-groq').value.trim();
-    settings.groqKey2 = document.getElementById('setting-groq2').value.trim();
-    settings.geminiKey = document.getElementById('setting-gemini').value.trim();
-    settings.cfAccount = document.getElementById('setting-cf-acc').value.trim();
-    settings.cfToken = document.getElementById('setting-cf-tok').value.trim();
-    settings.syllabus = document.getElementById('setting-syllabus-meta').value.trim();
-    settings.prompts.examprep = document.getElementById('prompt-examprep').value.trim();
-    settings.prompts.skillgain = document.getElementById('prompt-skillgain').value.trim();
-    settings.prompts.research = document.getElementById('prompt-research').value.trim();
-    if (chrome.storage && chrome.storage.local) chrome.storage.local.set({ sm_settings: settings }, () => {
-      document.getElementById('sm-modal-bg').style.display = 'none'; alert("Settings saved!");
-    });
-  };
-
-  document.getElementById('sm-btn-ai').onclick = () => {
-    if (!settings.groqKey && !settings.geminiKey) document.getElementById('sm-open-settings').click();
-    else triggerAINotesChunked(); 
-  };
+  safeBind('sm-save-settings', 'click', () => {
+    settings.llmProvider = safeGet('setting-provider') || 'groq';
+    settings.groqKey = safeGet('setting-groq');
+    settings.groqKey2 = safeGet('setting-groq2');
+    settings.geminiKey = safeGet('setting-gemini');
+    settings.cfAccount = safeGet('setting-cf-acc');
+    settings.cfToken = safeGet('setting-cf-tok');
+    settings.syllabus = safeGet('setting-syllabus-meta');
+    settings.prompts.examprep = safeGet('prompt-examprep') || defaultPrompts.examprep;
+    settings.prompts.skillgain = safeGet('prompt-skillgain') || defaultPrompts.skillgain;
+    settings.prompts.research = safeGet('prompt-research') || defaultPrompts.research;
+    
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ sm_settings: settings }, () => {
+          const modal = document.getElementById('sm-modal-bg');
+          if (modal) modal.style.display = 'none';
+          alert("Settings saved!");
+      });
+    }
+  });
 }
-
-function exitOS() { document.getElementById('sm-os-root').remove(); document.body.style.overflow = 'auto'; clearInterval(engineInterval); isRunning = false; }
 
 function timeToSeconds(timeStr) { const p = timeStr.split(':').map(Number); return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p[0]*60 + p[1]; }
 
 function renderWorkspace(videoId) {
   const editor = document.getElementById('sm-editor');
+  if (!editor) return;
   if (!videoId || !playlistState[videoId]) { editor.innerHTML = "Project initialized. Select a video from the queue..."; return; }
   const data = playlistState[videoId];
   if (data.userEdits !== "") { editor.innerHTML = data.userEdits; return; }
@@ -535,15 +558,6 @@ function renderWorkspace(videoId) {
     html += data.transcript.map(t => { const sec = timeToSeconds(t.time); return `<div><a class="sm-timestamp-link" contenteditable="false" data-time="${sec}">[${t.time}]</a> ${t.text}</div>`; }).join('');
   } else { html += data.transcript.map(t => t.text).join(' '); }
   editor.innerHTML = html;
-}
-
-// Ensure updateTabWarning is accessible globally
-function updateTabWarning() {
-    const isExtracting = orderedQueue.some(id => playlistState[id].status === 'extracting');
-    const warningEl = document.getElementById('sm-tab-warning');
-    if (warningEl) {
-        warningEl.style.display = isExtracting ? 'block' : 'none';
-    }
 }
 
 function buildQueueUI() {
@@ -580,9 +594,9 @@ function buildQueueUI() {
     qList.appendChild(div);
   });
   
-  updateTabWarning();
   const doneCount = orderedQueue.filter(id => playlistState[id].status === 'done' || playlistState[id].status === 'hard_skipped').length;
-  document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
+  const progressText = document.getElementById('sm-progress-text');
+  if (progressText) progressText.innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
 // ── Helper: Format Markdown to HTML ──
@@ -590,11 +604,10 @@ function formatLLMOutput(rawText) {
     let cleanText = rawText;
 
     cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
-        const lines = content.trim().split('\n').map(line => {
-            if (!line.trim()) return '<br>';
-            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
-        }).join('');
-        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
+        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;">
+                  <strong style="color:#30d158; cursor:pointer; display:block; margin-bottom:10px;" onclick="this.nextElementSibling.style.filter='none'; this.nextElementSibling.style.pointerEvents='auto';">👁️ Practice Solutions (Click to Reveal)</strong>
+                  <div class="sm-blurred-solution" style="filter: blur(8px); pointer-events: none; transition: filter 0.3s;">${content}</div>
+                </div>`;
     });
 
     cleanText = cleanText.replace(/\x60\x60\x60(\w+)?\n([\s\S]*?)\x60\x60\x60/g, (match, lang, code) => {
@@ -630,7 +643,6 @@ async function triggerAINotesChunked() {
   if (groqKeys.length === 0) { alert("No API key available!"); return; }
   let activeKeyIndex = 0;
 
-  // ── Transcript Pre-Analyzer (Top Comment) ──
   let customInstruction = "";
   try {
       const sampleTranscript = segments.slice(0, 40).map(t => t.text).join(' ');
@@ -732,7 +744,6 @@ async function triggerAINotesChunked() {
     }
   }
 
-  // ── Append Solutions Page to the end ──
   if (extractedSolutions.length > 0) {
       let solHTML = `<div style="page-break-before: always; margin-top: 50px; padding-top: 20px; border-top: 2px dashed #a855f7;">
           <h2 style="color:#30d158; margin-bottom: 20px;">🔍 Practice Solutions Page</h2>`;
@@ -748,7 +759,6 @@ async function triggerAINotesChunked() {
       finalNotesHTML += solHTML;
   }
 
-  // Convert Diagram Tags to the Interactive UI
   finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(?:\[([\d:]+)\])?\s*(.*?)\]\]/g, (match, timeStr, desc) => {
     let seekButtonHtml = "";
     if (timeStr) {
@@ -781,11 +791,12 @@ function runQueueProcessor() {
     let nextId = orderedQueue.find(id => playlistState[id].status === 'waiting');
     if (nextId) { processVideo(nextId); return; }
     
-    let skippedQueue = orderedQueue.filter(id => playlistState[id].status === 'skipped');
-    if (skippedQueue.length > 0) {
-        skippedQueue.forEach(id => playlistState[id].status = 'waiting_retry');
+    // Automatically retry skipped or failed videos exactly once
+    let retryQueue = orderedQueue.filter(id => playlistState[id].status === 'skipped' || playlistState[id].status === 'failed');
+    if (retryQueue.length > 0) {
+        retryQueue.forEach(id => playlistState[id].status = 'waiting_retry');
         buildQueueUI();
-        processVideo(skippedQueue[0]);
+        processVideo(retryQueue[0]);
         return;
     }
     
@@ -852,8 +863,12 @@ async function processVideo(vid) {
     if (state.transcript.length > 0) {
       state.status = 'done';
       if (currentViewedVideo === vid) renderWorkspace(vid);
-    } else { state.status = 'failed'; }
-  } else { state.status = 'failed'; }
+    } else { 
+      state.status = (state.status === 'waiting_retry') ? 'hard_skipped' : 'failed'; 
+    }
+  } else { 
+      state.status = (state.status === 'waiting_retry') ? 'hard_skipped' : 'failed'; 
+  }
 
   buildQueueUI(); await sleep(1500);
   runQueueProcessor();

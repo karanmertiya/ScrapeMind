@@ -7,7 +7,7 @@ let currentViewedVideo = null;
 let showTimestamps = false;
 let autoMuteOverride = false; 
 let projectName = "Untitled Project";
-let projectMode = "skillgain"; // Locks in the mode for the whole project
+let projectMode = "skillgain"; 
 
 // ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
@@ -16,7 +16,7 @@ const defaultPrompts = {
   research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
 };
 
-let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', syllabus: '', prompts: { ...defaultPrompts } };
+let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', cfAccount: '', cfToken: '', syllabus: '', prompts: { ...defaultPrompts } };
 
 if (chrome.storage && chrome.storage.local) {
   chrome.storage.local.get(['sm_settings'], (res) => {
@@ -84,8 +84,14 @@ async function launchOS(videos) {
                   <option value="gemini">Google Gemini (1.5 Pro)</option>
                 </select>
               </div>
-              <div class="sm-form-group"><label>Groq API Key</label><input type="password" id="setting-groq" class="sm-input" placeholder="gsk_..."></div>
-              <div class="sm-form-group"><label>Gemini API Key</label><input type="password" id="setting-gemini" class="sm-input" placeholder="AIza..."></div>
+              <div style="display:flex; gap:10px;">
+                <div class="sm-form-group" style="flex:1"><label>Groq API Key</label><input type="password" id="setting-groq" class="sm-input" placeholder="gsk_..."></div>
+                <div class="sm-form-group" style="flex:1"><label>Gemini API Key</label><input type="password" id="setting-gemini" class="sm-input" placeholder="AIza..."></div>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <div class="sm-form-group" style="flex:1"><label>Cloudflare Account ID</label><input type="password" id="setting-cf-acc" class="sm-input" placeholder="For AI Images..."></div>
+                <div class="sm-form-group" style="flex:1"><label>Cloudflare API Token</label><input type="password" id="setting-cf-tok" class="sm-input" placeholder="For AI Images..."></div>
+              </div>
               <div class="sm-form-group">
                 <label>Global Syllabus / Goal (Injected into all prompts)</label>
                 <textarea id="setting-syllabus" class="sm-input" style="height: 60px; resize: none;" placeholder="Paste your syllabus topics or learning target here..."></textarea>
@@ -142,7 +148,7 @@ async function launchOS(videos) {
       fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
 
       buildQueueUI(); 
-      processVideo(orderedQueue[0], 0); 
+      runQueueProcessor();
   };
 
   engineInterval = setInterval(() => {
@@ -165,9 +171,19 @@ async function launchOS(videos) {
   const editorNode = document.getElementById('sm-editor');
   editorNode.addEventListener('input', () => { if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML; });
   
-  // ── Event Delegation for Diagram Buttons ──
+  // ── Event Delegation for Editor (Diagrams & Blur Elements) ──
   editorNode.addEventListener('click', (e) => {
     const target = e.target;
+
+    // Line-by-Line Blur Reveal Logic (CSP Safe)
+    if (target.classList.contains('sm-blurred-line')) {
+        target.style.filter = 'none';
+        target.style.cursor = 'text';
+        target.classList.remove('sm-blurred-line');
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
+        return;
+    }
+
     if (!target.classList.contains('sm-diagram-btn')) return;
 
     const wrapper = target.closest('.sm-diagram-wrapper');
@@ -202,16 +218,36 @@ async function launchOS(videos) {
     else if (target.classList.contains('sm-action-generate')) {
         const userPrompt = prompt("Edit the image generation prompt:", desc);
         if (userPrompt) {
+            if (!settings.cfAccount || !settings.cfToken) {
+                alert("Please add your Cloudflare Account ID and Token in the Meta settings first!");
+                return;
+            }
             target.innerText = "⏳ Generating...";
             target.disabled = true;
-            // Free Pollinations AI image generator with a random seed cache buster
-            const randomSeed = Math.floor(Math.random() * 1000000);
-            const imgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(userPrompt)}?width=800&height=500&nologo=true&seed=${randomSeed}`;
-            const img = document.createElement('img');
-            img.onload = () => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
-            img.onerror = () => { alert("Failed to generate image."); target.innerText = "🎨 Generate AI Image"; target.disabled = false; };
-            img.src = imgUrl;
-            gallery.appendChild(img);
+            
+            // Cloudflare API via Render Microservice
+            fetch('https://scrapemind-yj4c.onrender.com/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: userPrompt, 
+                    account_id: settings.cfAccount, 
+                    api_token: settings.cfToken 
+                })
+            }).then(res => res.json())
+            .then(data => {
+                if (data.image_base64) {
+                    const img = document.createElement('img');
+                    img.src = "data:image/jpeg;base64," + data.image_base64;
+                    gallery.appendChild(img);
+                } else {
+                    alert("API returned no image data.");
+                }
+            }).catch(err => alert("Cloudflare Generator Error: " + err.message))
+            .finally(() => {
+                target.innerText = "🎨 Generate AI Image"; 
+                target.disabled = false;
+            });
         }
     }
     else if (target.classList.contains('sm-action-capture')) {
@@ -366,8 +402,8 @@ async function launchOS(videos) {
         playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], userEdits: "" };
         orderedQueue.push(vid); buildQueueUI(); document.getElementById('sm-add-url').value = "";
         
-        const unfinished = orderedQueue.findIndex(id => playlistState[id].status === 'waiting');
-        if (unfinished !== -1) processVideo(orderedQueue[unfinished], unfinished);
+        // Kickstart the queue if it was idle
+        runQueueProcessor();
       } else { alert("Video already in queue or invalid ID."); }
     } catch(e) { alert("Invalid URL."); document.getElementById('sm-add-url').value = ""; }
   };
@@ -388,6 +424,8 @@ async function launchOS(videos) {
     document.getElementById('setting-provider').value = settings.llmProvider;
     document.getElementById('setting-groq').value = settings.groqKey;
     document.getElementById('setting-gemini').value = settings.geminiKey;
+    document.getElementById('setting-cf-acc').value = settings.cfAccount || '';
+    document.getElementById('setting-cf-tok').value = settings.cfToken || '';
     document.getElementById('setting-syllabus').value = settings.syllabus || '';
     document.getElementById('prompt-examprep').value = settings.prompts.examprep;
     document.getElementById('prompt-skillgain').value = settings.prompts.skillgain;
@@ -410,6 +448,8 @@ async function launchOS(videos) {
     settings.llmProvider = document.getElementById('setting-provider').value;
     settings.groqKey = document.getElementById('setting-groq').value.trim();
     settings.geminiKey = document.getElementById('setting-gemini').value.trim();
+    settings.cfAccount = document.getElementById('setting-cf-acc').value.trim();
+    settings.cfToken = document.getElementById('setting-cf-tok').value.trim();
     settings.syllabus = document.getElementById('setting-syllabus').value.trim();
     settings.prompts.examprep = document.getElementById('prompt-examprep').value.trim();
     settings.prompts.skillgain = document.getElementById('prompt-skillgain').value.trim();
@@ -455,6 +495,8 @@ function buildQueueUI() {
     let statusText = "⏳ Waiting";
     if (v.status === 'done') { statusText = "✅ Complete"; div.classList.add('done'); }
     else if (v.status === 'skipped') { statusText = "⏭️ Skipped"; div.classList.add('skipped'); }
+    else if (v.status === 'hard_skipped') { statusText = "⏭️ Ignored"; div.classList.add('skipped'); }
+    else if (v.status === 'waiting_retry') { statusText = "⏳ Retrying..."; div.classList.add('skipped'); }
     else if (v.status === 'extracting') { statusText = "⚡ Extracting..."; div.classList.add('active'); }
 
     div.innerHTML = `
@@ -468,14 +510,23 @@ function buildQueueUI() {
       document.querySelectorAll('.sm-queue-item').forEach(el => el.classList.remove('active'));
       div.classList.add('active'); currentViewedVideo = v.id; renderWorkspace(v.id);
     };
-    div.querySelector('.delete').onclick = () => { v.status = 'skipped'; div.classList.add('skipped'); div.querySelector('.sm-status').textContent = "⏭️ Skipped"; };
+
+    // If clicked while waiting, it skips. If clicked again, it hard-skips (ignores permanently).
+    div.querySelector('.delete').onclick = () => { 
+        if (v.status === 'waiting' || v.status === 'extracting') {
+            v.status = 'skipped';
+        } else {
+            v.status = 'hard_skipped';
+        }
+        buildQueueUI();
+    };
     qList.appendChild(div);
   });
-  const doneCount = orderedQueue.filter(id => playlistState[id].status === 'done' || playlistState[id].status === 'skipped').length;
+  const doneCount = orderedQueue.filter(id => playlistState[id].status === 'done' || playlistState[id].status === 'hard_skipped').length;
   document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
-// ── Helper: Format Markdown to HTML (Fixes Code & Line-by-Line Blur) ──
+// ── Helper: Format Markdown to HTML (Fixes Code & Lists) ──
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
     
@@ -483,7 +534,7 @@ function formatLLMOutput(rawText) {
     cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
         const lines = content.trim().split('\n').map(line => {
             if (!line.trim()) return '<br>';
-            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;" onclick="this.style.filter='none'; this.style.cursor='text';">${line}</div><br>`;
+            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
         }).join('');
         return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
     });
@@ -497,13 +548,9 @@ function formatLLMOutput(rawText) {
     cleanText = cleanText.replace(/^# (.*$)/gim, '<br><br><h1>$1</h1>');
     cleanText = cleanText.replace(/^\> (.*$)/gim, '<blockquote style="border-left: 3px solid #a855f7; padding-left: 10px; margin: 10px 0;">$1</blockquote>');
     
-    // Parse Unordered Lists (*)
-    cleanText = cleanText.replace(/^\s*[\*\-]\s+(.*$)/gim, '<ul style="margin: 5px 0 5px 20px; padding: 0;"><li>$1</li></ul>');
-    cleanText = cleanText.replace(/<\/ul>\s*<ul[^>]*>/g, ''); 
-
-    // Parse Ordered Lists (1., 2.)
-    cleanText = cleanText.replace(/^\s*\d+\.\s+(.*$)/gim, '<ol style="margin: 5px 0 5px 20px; padding: 0;"><li>$1</li></ol>');
-    cleanText = cleanText.replace(/<\/ol>\s*<ol[^>]*>/g, ''); 
+    // Convert Unordered Lists (*) and Ordered Lists (1.) to block elements for perfect PDF rendering
+    cleanText = cleanText.replace(/^\s*[\*\-]\s+(.*$)/gim, '<div style="margin-left: 20px; display: list-item; list-style-type: disc; margin-bottom: 5px;">$1</div>');
+    cleanText = cleanText.replace(/^\s*\d+\.\s+(.*$)/gim, '<div style="margin-left: 20px; display: list-item; list-style-type: decimal; margin-bottom: 5px;">$1</div>');
         
     return cleanText;
 }
@@ -616,12 +663,35 @@ async function triggerAINotesChunked() {
   editor.innerHTML = finalNotesHTML;
 }
 
-// ── Background Extractor ──
+// ── Smart Background Extractor with Loop-Back ──
+function runQueueProcessor() {
+    // 1. Find the next waiting video
+    let nextId = orderedQueue.find(id => playlistState[id].status === 'waiting');
+    
+    if (nextId) {
+        processVideo(nextId);
+        return;
+    }
+    
+    // 2. If no waiting videos, loop back to skipped ones exactly ONCE
+    let skippedQueue = orderedQueue.filter(id => playlistState[id].status === 'skipped');
+    if (skippedQueue.length > 0) {
+        skippedQueue.forEach(id => playlistState[id].status = 'waiting_retry');
+        buildQueueUI();
+        processVideo(skippedQueue[0]);
+        return;
+    }
+    
+    // 3. Process the retries
+    let retryId = orderedQueue.find(id => playlistState[id].status === 'waiting_retry');
+    if (retryId) {
+        processVideo(retryId);
+    }
+}
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function processVideo(vid, index) {
-  if (index >= orderedQueue.length) return; 
+async function processVideo(vid) {
   const state = playlistState[vid];
-  if (state.status === 'skipped') { buildQueueUI(); processVideo(orderedQueue[index + 1], index + 1); return; }
 
   state.status = 'extracting'; buildQueueUI(); 
 
@@ -665,5 +735,7 @@ async function processVideo(vid, index) {
   } else { state.status = 'failed'; }
 
   buildQueueUI(); await sleep(1500);
-  processVideo(orderedQueue[index + 1], index + 1);
+  
+  // Continue processing the queue
+  runQueueProcessor();
 }

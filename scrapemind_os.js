@@ -11,9 +11,9 @@ let projectMode = "skillgain";
 
 // ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
-  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. \n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
-  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms and practical application.\n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
-  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]."
+  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
+  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
+  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
 };
 
 let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', cfAccount: '', cfToken: '', syllabus: '', prompts: { ...defaultPrompts } };
@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 async function launchOS(videos) {
   videos.forEach(v => {
-    playlistState[v.id] = { id: v.id, title: v.title, status: 'waiting', transcript: [], userEdits: "" };
+    playlistState[v.id] = { id: v.id, title: v.title, status: 'waiting', transcript: [], comments: [], userEdits: "" };
     orderedQueue.push(v.id);
   });
 
@@ -45,9 +45,11 @@ async function launchOS(videos) {
           <div class="sm-toolbar">
             <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
             <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
-            <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export PDF</button>
+            <button class="sm-btn sm-btn-success" id="sm-btn-export-all">🖨️ Export All</button>
+            <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export Current</button>
             <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit</button>
-            <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate</button>
+            <button class="sm-btn sm-btn-primary" id="sm-btn-ai-all">✨ Generate All</button>
+            <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate Current</button>
             <button class="sm-btn" id="sm-close-os">Exit</button>
           </div>
         </div>
@@ -144,9 +146,7 @@ async function launchOS(videos) {
       document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
       document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
       
-      // Wake up the Render Microservice early
       fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
-
       buildQueueUI(); 
       runQueueProcessor();
   };
@@ -164,7 +164,6 @@ async function launchOS(videos) {
     }
   }, 100);
 
-  // Bind UI Events
   document.getElementById('sm-close-os').onclick = exitOS;
   document.getElementById('sm-toggle-time').onchange = (e) => { showTimestamps = e.target.checked; renderWorkspace(currentViewedVideo); };
   
@@ -175,7 +174,6 @@ async function launchOS(videos) {
   editorNode.addEventListener('click', (e) => {
     const target = e.target;
 
-    // Line-by-Line Blur Reveal Logic (CSP Safe)
     if (target.classList.contains('sm-blurred-line')) {
         target.style.filter = 'none';
         target.style.cursor = 'text';
@@ -216,7 +214,10 @@ async function launchOS(videos) {
         };
     }
     else if (target.classList.contains('sm-action-generate')) {
-        const userPrompt = prompt("Edit the image generation prompt:", desc);
+        // We wrap the user's description in a strict styling prompt so SD doesn't draw literal humans
+        const defaultStylePrompt = `A clean, technical educational diagram showing: ${desc}. Minimalist flat vector style, computer science schematic, white background, no text.`;
+        const userPrompt = prompt("Edit the image generation prompt for Stable Diffusion:", defaultStylePrompt);
+        
         if (userPrompt) {
             if (!settings.cfAccount || !settings.cfToken) {
                 alert("Please add your Cloudflare Account ID and Token in the Meta settings first!");
@@ -225,30 +226,21 @@ async function launchOS(videos) {
             target.innerText = "⏳ Generating...";
             target.disabled = true;
             
-            // Cloudflare API via Render Microservice
             fetch('https://scrapemind-yj4c.onrender.com/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    prompt: userPrompt, 
-                    account_id: settings.cfAccount, 
-                    api_token: settings.cfToken 
-                })
+                body: JSON.stringify({ prompt: userPrompt, account_id: settings.cfAccount, api_token: settings.cfToken })
             }).then(res => res.json())
             .then(data => {
                 if (data.image_base64) {
                     const img = document.createElement('img');
-                    // Ensure the PNG prefix is correctly set for Pandoc
                     img.src = "data:image/png;base64," + data.image_base64;
                     gallery.appendChild(img);
                 } else {
                     alert("API returned no image data.");
                 }
             }).catch(err => alert("Cloudflare Generator Error: " + err.message))
-            .finally(() => {
-                target.innerText = "🎨 Generate AI Image"; 
-                target.disabled = false;
-            });
+            .finally(() => { target.innerText = "🎨 Generate AI Image"; target.disabled = false; });
         }
     }
     else if (target.classList.contains('sm-action-capture')) {
@@ -274,13 +266,12 @@ async function launchOS(videos) {
   document.getElementById('sm-btn-edit').onclick = async () => {
     const selection = window.getSelection();
     const highlightedText = selection.toString().trim();
-    
     if (!highlightedText) { alert("Please highlight the text you want to edit first."); return; }
 
-    const instruction = prompt("How should the AI rewrite this? (e.g., 'Make it shorter', 'Format as a list', 'Fix clumping')");
+    const instruction = prompt("How should the AI rewrite this?");
     if (!instruction) return;
 
-    if (!settings.groqKey) { alert("Please set your Groq API key in the Meta settings first."); return; }
+    if (!settings.groqKey) { alert("Please set your Groq API key."); return; }
 
     const originalBtnText = document.getElementById('sm-btn-edit').innerText;
     document.getElementById('sm-btn-edit').innerText = "⏳ Rewriting...";
@@ -289,110 +280,111 @@ async function launchOS(videos) {
 
     try {
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST", 
-            headers: { "Authorization": `Bearer ${settings.groqKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-                model: "llama-3.3-70b-versatile", 
-                messages: [{ role: "user", content: promptText }], 
-                temperature: 0.2
-            })
+            method: "POST", headers: { "Authorization": `Bearer ${settings.groqKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: promptText }], temperature: 0.2 })
         });
-        
         const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
-        
         let newText = data.choices[0].message.content.replace(/\x60\x60\x60html|\x60\x60\x60/g, '');
         
         const range = selection.getRangeAt(0);
         range.deleteContents();
-        
-        const tempDiv = document.createElement("div");
-        tempDiv.innerHTML = newText;
-        
+        const tempDiv = document.createElement("div"); tempDiv.innerHTML = newText;
         const frag = document.createDocumentFragment();
-        let node;
-        while ((node = tempDiv.firstChild)) { frag.appendChild(node); }
+        while (tempDiv.firstChild) { frag.appendChild(tempDiv.firstChild); }
         range.insertNode(frag);
         
         if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
-
-    } catch (e) {
-        alert(`Edit failed: ${e.message}`);
-    } finally {
-        document.getElementById('sm-btn-edit').innerText = originalBtnText;
-    }
+    } catch (e) { alert(`Edit failed: ${e.message}`); } finally { document.getElementById('sm-btn-edit').innerText = originalBtnText; }
   };
 
-  // ── Advanced LaTeX PDF Export via Microservice (Leave No Trace Dissolver) ──
-  document.getElementById('sm-btn-export').onclick = async () => {
-    const exportBtn = document.getElementById('sm-btn-export');
-    
-    const cloneEditor = editorNode.cloneNode(true);
-    
-    // Unblur solutions
-    cloneEditor.querySelectorAll('.sm-blurred-line').forEach(el => {
-        el.style.filter = 'none';
-        el.style.display = 'block';
-    });
+  // ── Master Generate All Logic ──
+  document.getElementById('sm-btn-ai-all').onclick = async () => {
+      if (!settings.groqKey) { document.getElementById('sm-open-settings').click(); return; }
+      
+      const originalText = document.getElementById('sm-btn-ai-all').innerText;
+      document.getElementById('sm-btn-ai-all').innerText = "⏳ Generating All...";
+      document.getElementById('sm-btn-ai-all').disabled = true;
 
-    // Handle Diagrams: "Leave No Trace" for empty ones
-    const wrappers = cloneEditor.querySelectorAll('.sm-diagram-wrapper');
-    wrappers.forEach(w => {
-        const galleryHTML = w.querySelector('.sm-diagram-gallery').innerHTML;
-        const descEl = w.querySelector('.sm-diagram-desc');
-        const desc = descEl ? descEl.getAttribute('data-desc') : "";
-        
-        // If there are no images in the gallery, DELETE THE ENTIRE BLOCK without a trace
-        if (!galleryHTML.trim() || !galleryHTML.includes('<img')) {
-            w.remove();
-        } else {
-            // If there is an image, keep the image and label, but remove the buttons
-            const cleanHTML = `
-                <div style="text-align:center; margin: 25px 0;">
-                    <strong style="color: #666; font-size: 14px;">Figure: ${desc}</strong><br><br>
-                    ${galleryHTML}
-                </div><br>`;
-            w.outerHTML = cleanHTML;
-        }
-    });
+      for (const vid of orderedQueue) {
+          // Only process videos that have been fully extracted and don't already have notes
+          if (playlistState[vid].status === 'done' && !playlistState[vid].userEdits) {
+              currentViewedVideo = vid; // Visually switch to the video being processed
+              renderWorkspace(vid);
+              await triggerAINotesChunked();
+              await sleep(2000); // Small buffer between full video generation
+          }
+      }
+
+      document.getElementById('sm-btn-ai-all').innerText = originalText;
+      document.getElementById('sm-btn-ai-all').disabled = false;
+      alert("Finished generating notes for all processed videos in the queue!");
+  };
+
+  // ── Master PDF Cleanup Helper ──
+  function cleanupForPDF(container) {
+      container.querySelectorAll('.sm-blurred-line').forEach(el => { el.style.filter = 'none'; el.style.display = 'block'; });
+      
+      container.querySelectorAll('img').forEach(img => {
+          const placeholder = document.createElement('div');
+          placeholder.innerHTML = `<div style="text-align:center; padding: 10px; border: 1px dashed #666; margin: 10px 0;"><strong style="color: #444; font-size: 14px;">[Image omitted to prevent LaTeX compilation errors]</strong></div>`;
+          img.replaceWith(placeholder);
+      });
+
+      container.querySelectorAll('.sm-diagram-wrapper').forEach(w => {
+          const descEl = w.querySelector('.sm-diagram-desc');
+          const desc = descEl ? descEl.getAttribute('data-desc') : "";
+          w.outerHTML = `<div style="text-align:center; margin: 25px 0; padding: 10px; border: 1px dashed #666;"><strong style="color: #444; font-size: 14px;">[Diagram Placeholder: ${desc}]</strong><br></div><br>`;
+      });
+  }
+
+  // ── Single Export ──
+  document.getElementById('sm-btn-export').onclick = async () => {
+    const cloneEditor = editorNode.cloneNode(true);
+    cleanupForPDF(cloneEditor);
 
     const contentToExport = `<h1>${projectName}</h1><br><br>` + cloneEditor.innerHTML; 
+    if (!contentToExport || contentToExport.includes("Select a video") || contentToExport.includes("Project initialized")) { alert("Generate notes first!"); return; }
 
-    if (!contentToExport || contentToExport.includes("Select a video") || contentToExport.includes("Project initialized")) {
-        alert("Generate notes first before exporting!");
-        return;
-    }
-
-    const originalText = exportBtn.innerText;
-    exportBtn.innerText = "⏳ Compiling PDF...";
-    exportBtn.disabled = true;
-
-    try {
-        const response = await fetch('https://scrapemind-yj4c.onrender.com/generate-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ markdown: contentToExport }) 
-        });
-
-        if (!response.ok) throw new Error("Microservice failed to compile PDF. Render might be sleeping. Try again in 30 seconds.");
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `${projectName.replace(/\s+/g, '_')}_Notes.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-    } catch (error) {
-        alert(`Export Error: ${error.message}`);
-    } finally {
-        exportBtn.innerText = originalText;
-        exportBtn.disabled = false;
-    }
+    await exportPDFPayload(contentToExport, document.getElementById('sm-btn-export'));
   };
+
+  // ── Master Export All ──
+  document.getElementById('sm-btn-export-all').onclick = async () => {
+    let combinedHTML = `<h1>${projectName} - Full Course Notes</h1><br><br>`;
+    let hasNotes = false;
+
+    for (const vid of orderedQueue) {
+        if (playlistState[vid].userEdits) {
+            hasNotes = true;
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = playlistState[vid].userEdits;
+            cleanupForPDF(tempDiv);
+            // Append with a page break between videos
+            combinedHTML += tempDiv.innerHTML + `<div style="page-break-before: always;"></div>`;
+        }
+    }
+
+    if (!hasNotes) { alert("No notes to export yet! Generate notes for at least one video."); return; }
+    await exportPDFPayload(combinedHTML, document.getElementById('sm-btn-export-all'));
+  };
+
+  async function exportPDFPayload(htmlContent, btnElement) {
+      const originalText = btnElement.innerText;
+      btnElement.innerText = "⏳ Compiling PDF...";
+      btnElement.disabled = true;
+      try {
+          const response = await fetch('https://scrapemind-yj4c.onrender.com/generate-pdf', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markdown: htmlContent }) 
+          });
+          if (!response.ok) throw new Error("Microservice failed to compile PDF. Try again in 30 seconds.");
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+          a.download = `${projectName.replace(/\s+/g, '_')}_Notes.pdf`;
+          document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
+      } catch (error) { alert(`Export Error: ${error.message}`); } 
+      finally { btnElement.innerText = originalText; btnElement.disabled = false; }
+  }
 
   // ── Queue Adder ──
   document.getElementById('sm-btn-add').onclick = () => {
@@ -401,7 +393,7 @@ async function launchOS(videos) {
       const url = new URL(urlStr); 
       const vid = url.searchParams.get('v');
       if (vid && !playlistState[vid]) {
-        playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], userEdits: "" };
+        playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], comments: [], userEdits: "" };
         orderedQueue.push(vid); buildQueueUI(); document.getElementById('sm-add-url').value = "";
         runQueueProcessor();
       } else { alert("Video already in queue or invalid ID."); }
@@ -419,7 +411,7 @@ async function launchOS(videos) {
     }
   });
 
-  // Settings
+  // Settings UI
   document.getElementById('sm-open-settings').onclick = () => {
     document.getElementById('setting-provider').value = settings.llmProvider;
     document.getElementById('setting-groq').value = settings.groqKey;
@@ -511,11 +503,7 @@ function buildQueueUI() {
     };
 
     div.querySelector('.delete').onclick = () => { 
-        if (v.status === 'waiting' || v.status === 'extracting') {
-            v.status = 'skipped';
-        } else {
-            v.status = 'hard_skipped';
-        }
+        if (v.status === 'waiting' || v.status === 'extracting') { v.status = 'skipped'; } else { v.status = 'hard_skipped'; }
         buildQueueUI();
     };
     qList.appendChild(div);
@@ -528,7 +516,14 @@ function buildQueueUI() {
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
 
-    // Safely extract code blocks with Language highlighting for Pandoc
+    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
+        const lines = content.trim().split('\n').map(line => {
+            if (!line.trim()) return '<br>';
+            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
+        }).join('');
+        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
+    });
+
     cleanText = cleanText.replace(/\x60\x60\x60(\w+)?\n([\s\S]*?)\x60\x60\x60/g, (match, lang, code) => {
         return `<pre class="sourceCode ${lang || ''}" style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>${code}</code></pre>`;
     });
@@ -553,7 +548,8 @@ async function triggerAINotesChunked() {
   const editor = document.getElementById('sm-editor');
   const originalHTML = editor.innerHTML;
   
-  const segments = playlistState[currentViewedVideo].transcript;
+  const state = playlistState[currentViewedVideo];
+  const segments = state.transcript;
   
   editor.innerHTML = `<h3>🤖 Initializing AI...</h3><p>Analyzing video transcript to build custom prompt...</p>`;
   
@@ -561,7 +557,14 @@ async function triggerAINotesChunked() {
   let customInstruction = "";
   try {
       const sampleTranscript = segments.slice(0, 40).map(t => t.text).join(' ');
-      const prePrompt = `Analyze this video transcript excerpt and write a strict 2-sentence instruction on what specific themes, concepts, or formulas to prioritize when taking notes for this specific topic. Return ONLY the instructions.\n\nTranscript:\n${sampleTranscript}`;
+      
+      // Inject YouTube Comments into the pre-analyzer context
+      let commentContext = "";
+      if (state.comments && state.comments.length > 0) {
+          commentContext = `\n\nTop Community Comments (May contain corrections or insights):\n- ${state.comments.join('\n- ')}`;
+      }
+
+      const prePrompt = `Analyze this video transcript excerpt. Write a strict 2-sentence instruction on what specific themes, concepts, or formulas to prioritize when taking notes for this specific topic. Return ONLY the instructions.\n\nTranscript:\n${sampleTranscript}${commentContext}`;
       
       const preRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST", headers: { "Authorization": `Bearer ${settings.groqKey}`, "Content-Type": "application/json" },
@@ -577,7 +580,6 @@ async function triggerAINotesChunked() {
 
   let finalNotesHTML = `<h2>🧠 AI Notes: ${playlistState[currentViewedVideo].title} (${mode.toUpperCase()} Mode)</h2>`;
   
-  // Top Comment Blockquote
   if (customInstruction) {
       finalNotesHTML += `
       <blockquote style="background: rgba(168, 85, 247, 0.1); border-left: 4px solid #a855f7; padding: 15px; border-radius: 4px; margin: 20px 0; font-style: italic; color: #d4d4d8;">
@@ -591,6 +593,7 @@ async function triggerAINotesChunked() {
   let basePrompt = settings.prompts[mode];
   if (customInstruction) basePrompt += `\n\nCRITICAL CONTEXT FOR THIS VIDEO:\n${customInstruction}`;
   if (settings.syllabus) basePrompt += `\n\nSYLLABUS TO FOLLOW:\n${settings.syllabus}`;
+  if (state.comments && state.comments.length > 0) basePrompt += `\n\nCommunity Comments:\n- ${state.comments.join('\n- ')}`;
 
   let extractedSolutions = [];
 
@@ -625,7 +628,6 @@ async function triggerAINotesChunked() {
         aiResponse = data.choices[0].message.content;
       }
       
-      // Extract solutions and remove them from the main body
       aiResponse = aiResponse.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
           extractedSolutions.push(content.trim());
           return ""; 
@@ -642,7 +644,6 @@ async function triggerAINotesChunked() {
 
   // ── Append Solutions Page to the end ──
   if (extractedSolutions.length > 0) {
-      // The inline style "page-break-before: always" forces a new page in the PDF
       let solHTML = `<div style="page-break-before: always; margin-top: 50px; padding-top: 20px; border-top: 2px dashed #a855f7;">
           <h2 style="color:#30d158; margin-bottom: 20px;">🔍 Practice Solutions Page</h2>`;
           
@@ -685,7 +686,7 @@ async function triggerAINotesChunked() {
   editor.innerHTML = finalNotesHTML;
 }
 
-// ── Smart Background Extractor with Loop-Back ──
+// ── Smart Background Extractor with Loop-Back & Comment Scraping ──
 function runQueueProcessor() {
     let nextId = orderedQueue.find(id => playlistState[id].status === 'waiting');
     if (nextId) { processVideo(nextId); return; }
@@ -718,6 +719,17 @@ async function processVideo(vid) {
   await sleep(3000); 
   state.title = document.title.replace(' - YouTube', ''); 
   
+  // ── Scrape Top YouTube Comments ──
+  window.scrollBy(0, 800); // Scroll down to trigger comment loading
+  await sleep(2000);
+  window.scrollBy(0, 800); // Secondary scroll just in case
+  await sleep(1000);
+  const commentEls = document.querySelectorAll('ytd-comment-thread-renderer #content-text');
+  if (commentEls.length > 0) {
+      state.comments = Array.from(commentEls).slice(0, 3).map(el => el.textContent.trim());
+  }
+
+  // ── Scrape Transcript ──
   const expandBtn = document.querySelector('tp-yt-paper-button#expand') || document.querySelector('ytd-text-inline-expander button');
   if (expandBtn) expandBtn.click();
   

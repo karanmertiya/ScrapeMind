@@ -11,9 +11,9 @@ let projectMode = "skillgain";
 
 // ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
-  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
-  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
-  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: Write [[DIAGRAM: [MM:SS] Data chart or experimental setup shown]] whenever visual evidence is referenced. (Replace MM:SS with the video timestamp)."
+  examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. \n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
+  skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms and practical application.\n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
+  research: "You are a Post-Doc Researcher. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks. For lists, use standard markdown * or 1. at the start of new lines. Synthesize the transcript into a critical literature review.\n\nRULE: NEVER request diagrams for code snippets. ONLY request diagrams for physical architectures, charts, or conceptual models using this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]."
 };
 
 let settings = { llmProvider: 'groq', groqKey: '', geminiKey: '', cfAccount: '', cfToken: '', syllabus: '', prompts: { ...defaultPrompts } };
@@ -238,7 +238,8 @@ async function launchOS(videos) {
             .then(data => {
                 if (data.image_base64) {
                     const img = document.createElement('img');
-                    img.src = "data:image/jpeg;base64," + data.image_base64;
+                    // Ensure the PNG prefix is correctly set for Pandoc
+                    img.src = "data:image/png;base64," + data.image_base64;
                     gallery.appendChild(img);
                 } else {
                     alert("API returned no image data.");
@@ -322,36 +323,37 @@ async function launchOS(videos) {
     }
   };
 
-  // ── Advanced LaTeX PDF Export via Microservice (Fixes ALL Image Crashes) ──
+  // ── Advanced LaTeX PDF Export via Microservice (Leave No Trace Dissolver) ──
   document.getElementById('sm-btn-export').onclick = async () => {
     const exportBtn = document.getElementById('sm-btn-export');
     
-    // 1. Clone the editor so we don't ruin the live user interface
     const cloneEditor = editorNode.cloneNode(true);
     
-    // 2. Unblur any solutions line-by-line so they show up correctly in the PDF
+    // Unblur solutions
     cloneEditor.querySelectorAll('.sm-blurred-line').forEach(el => {
         el.style.filter = 'none';
         el.style.display = 'block';
     });
 
-    // 3. FORCE STRIP ALL IMAGES globally to prevent Pandoc 500 crashes
-    cloneEditor.querySelectorAll('img').forEach(img => {
-        const placeholder = document.createElement('div');
-        placeholder.innerHTML = `<div style="text-align:center; padding: 10px; border: 1px dashed #666; margin: 10px 0;"><strong style="color: #444; font-size: 14px;">[Image omitted to prevent LaTeX compilation errors]</strong></div>`;
-        img.replaceWith(placeholder);
-    });
-
-    // 4. Remove Diagram Wrapper controls
+    // Handle Diagrams: "Leave No Trace" for empty ones
     const wrappers = cloneEditor.querySelectorAll('.sm-diagram-wrapper');
     wrappers.forEach(w => {
+        const galleryHTML = w.querySelector('.sm-diagram-gallery').innerHTML;
         const descEl = w.querySelector('.sm-diagram-desc');
         const desc = descEl ? descEl.getAttribute('data-desc') : "";
-        const cleanHTML = `
-            <div style="text-align:center; margin: 25px 0; padding: 10px; border: 1px dashed #666;">
-                <strong style="color: #444; font-size: 14px;">[Diagram Placeholder: ${desc}]</strong><br>
-            </div><br>`;
-        w.outerHTML = cleanHTML;
+        
+        // If there are no images in the gallery, DELETE THE ENTIRE BLOCK without a trace
+        if (!galleryHTML.trim() || !galleryHTML.includes('<img')) {
+            w.remove();
+        } else {
+            // If there is an image, keep the image and label, but remove the buttons
+            const cleanHTML = `
+                <div style="text-align:center; margin: 25px 0;">
+                    <strong style="color: #666; font-size: 14px;">Figure: ${desc}</strong><br><br>
+                    ${galleryHTML}
+                </div><br>`;
+            w.outerHTML = cleanHTML;
+        }
     });
 
     const contentToExport = `<h1>${projectName}</h1><br><br>` + cloneEditor.innerHTML; 
@@ -385,7 +387,7 @@ async function launchOS(videos) {
         a.click();
         window.URL.revokeObjectURL(url);
     } catch (error) {
-        alert(`Export Error: ${error.message}\nMake sure your Render service is live and fully deployed!`);
+        alert(`Export Error: ${error.message}`);
     } finally {
         exportBtn.innerText = originalText;
         exportBtn.disabled = false;
@@ -401,8 +403,6 @@ async function launchOS(videos) {
       if (vid && !playlistState[vid]) {
         playlistState[vid] = { id: vid, title: `Pending Video (${vid})`, status: 'waiting', transcript: [], userEdits: "" };
         orderedQueue.push(vid); buildQueueUI(); document.getElementById('sm-add-url').value = "";
-        
-        // Kickstart the queue if it was idle
         runQueueProcessor();
       } else { alert("Video already in queue or invalid ID."); }
     } catch(e) { alert("Invalid URL."); document.getElementById('sm-add-url').value = ""; }
@@ -467,7 +467,6 @@ async function launchOS(videos) {
 
 function exitOS() { document.getElementById('sm-os-root').remove(); document.body.style.overflow = 'auto'; clearInterval(engineInterval); isRunning = false; }
 
-// ── Workspace Render ──
 function timeToSeconds(timeStr) { const p = timeStr.split(':').map(Number); return p.length === 3 ? p[0]*3600 + p[1]*60 + p[2] : p[0]*60 + p[1]; }
 
 function renderWorkspace(videoId) {
@@ -511,7 +510,6 @@ function buildQueueUI() {
       div.classList.add('active'); currentViewedVideo = v.id; renderWorkspace(v.id);
     };
 
-    // If clicked while waiting, it skips. If clicked again, it hard-skips (ignores permanently).
     div.querySelector('.delete').onclick = () => { 
         if (v.status === 'waiting' || v.status === 'extracting') {
             v.status = 'skipped';
@@ -526,21 +524,14 @@ function buildQueueUI() {
   document.getElementById('sm-progress-text').innerText = `${doneCount} / ${orderedQueue.length}`;
 }
 
-// ── Helper: Format Markdown to HTML (Fixes Code & Lists) ──
+// ── Helper: Format Markdown to HTML ──
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
-    
-    // Parse the Blurred Practice Solutions (Line-by-Line unveiling)
-    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
-        const lines = content.trim().split('\n').map(line => {
-            if (!line.trim()) return '<br>';
-            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
-        }).join('');
-        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
-    });
 
-    // Safely extract code blocks
-    cleanText = cleanText.replace(/\x60\x60\x60(?:\w+)?\n([\s\S]*?)\x60\x60\x60/g, '<pre style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>$1</code></pre>');
+    // Safely extract code blocks with Language highlighting for Pandoc
+    cleanText = cleanText.replace(/\x60\x60\x60(\w+)?\n([\s\S]*?)\x60\x60\x60/g, (match, lang, code) => {
+        return `<pre class="sourceCode ${lang || ''}" style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>${code}</code></pre>`;
+    });
 
     cleanText = cleanText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     cleanText = cleanText.replace(/^### (.*$)/gim, '<br><br><h3>$1</h3>');
@@ -548,7 +539,6 @@ function formatLLMOutput(rawText) {
     cleanText = cleanText.replace(/^# (.*$)/gim, '<br><br><h1>$1</h1>');
     cleanText = cleanText.replace(/^\> (.*$)/gim, '<blockquote style="border-left: 3px solid #a855f7; padding-left: 10px; margin: 10px 0;">$1</blockquote>');
     
-    // Convert Unordered Lists (*) and Ordered Lists (1.) to block elements for perfect PDF rendering
     cleanText = cleanText.replace(/^\s*[\*\-]\s+(.*$)/gim, '<div style="margin-left: 20px; display: list-item; list-style-type: disc; margin-bottom: 5px;">$1</div>');
     cleanText = cleanText.replace(/^\s*\d+\.\s+(.*$)/gim, '<div style="margin-left: 20px; display: list-item; list-style-type: decimal; margin-bottom: 5px;">$1</div>');
         
@@ -567,7 +557,7 @@ async function triggerAINotesChunked() {
   
   editor.innerHTML = `<h3>🤖 Initializing AI...</h3><p>Analyzing video transcript to build custom prompt...</p>`;
   
-  // ── Transcript Pre-Analyzer (Builds Custom Prompt) ──
+  // ── Transcript Pre-Analyzer (Top Comment) ──
   let customInstruction = "";
   try {
       const sampleTranscript = segments.slice(0, 40).map(t => t.text).join(' ');
@@ -586,13 +576,23 @@ async function triggerAINotesChunked() {
   for (let i = 0; i < segments.length; i += chunkSize) chunks.push(segments.slice(i, i + chunkSize));
 
   let finalNotesHTML = `<h2>🧠 AI Notes: ${playlistState[currentViewedVideo].title} (${mode.toUpperCase()} Mode)</h2>`;
-  if (customInstruction) finalNotesHTML += `<p style="color:#a855f7;"><i>Custom Focus: ${customInstruction}</i></p><br><br>`;
+  
+  // Top Comment Blockquote
+  if (customInstruction) {
+      finalNotesHTML += `
+      <blockquote style="background: rgba(168, 85, 247, 0.1); border-left: 4px solid #a855f7; padding: 15px; border-radius: 4px; margin: 20px 0; font-style: italic; color: #d4d4d8;">
+        <strong style="color: #a855f7; font-style: normal; display: block; margin-bottom: 5px;">🎯 Custom Focus for this Video:</strong>
+        ${customInstruction}
+      </blockquote>`;
+  }
   
   editor.innerHTML = `<h3>🤖 Segmenting video into ${chunks.length} parts...</h3>`;
 
   let basePrompt = settings.prompts[mode];
   if (customInstruction) basePrompt += `\n\nCRITICAL CONTEXT FOR THIS VIDEO:\n${customInstruction}`;
   if (settings.syllabus) basePrompt += `\n\nSYLLABUS TO FOLLOW:\n${settings.syllabus}`;
+
+  let extractedSolutions = [];
 
   for (let c = 0; c < chunks.length; c++) {
     editor.innerHTML += `<p>⏳ Analyzing Part ${c + 1} of ${chunks.length}...</p>`;
@@ -603,7 +603,6 @@ async function triggerAINotesChunked() {
       ? `${basePrompt}\n\nThis is PART 1 of the transcript. Begin formatting the structured notes.` 
       : `${basePrompt}\n\nThis is PART ${c + 1} of the transcript. Continue the structured notes seamlessly. Do not repeat introductory headers.`;
 
-    // Trigger blurred solutions on the final chunk
     if (isLastChunk) {
         chunkPrompt += "\n\nCRITICAL: Since this is the final part, conclude with 3 Practice Questions. IMMEDIATELY follow them with their solutions wrapped EXACTLY in [[SOLUTION_START]] and [[SOLUTION_END]] tags.";
     }
@@ -626,6 +625,12 @@ async function triggerAINotesChunked() {
         aiResponse = data.choices[0].message.content;
       }
       
+      // Extract solutions and remove them from the main body
+      aiResponse = aiResponse.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
+          extractedSolutions.push(content.trim());
+          return ""; 
+      });
+
       finalNotesHTML += formatLLMOutput(aiResponse) + "<br><br>";
 
     } catch (e) {
@@ -635,7 +640,24 @@ async function triggerAINotesChunked() {
     }
   }
 
-  // Convert Diagram Tags to the Interactive UI with proper Action inputs
+  // ── Append Solutions Page to the end ──
+  if (extractedSolutions.length > 0) {
+      // The inline style "page-break-before: always" forces a new page in the PDF
+      let solHTML = `<div style="page-break-before: always; margin-top: 50px; padding-top: 20px; border-top: 2px dashed #a855f7;">
+          <h2 style="color:#30d158; margin-bottom: 20px;">🔍 Practice Solutions Page</h2>`;
+          
+      extractedSolutions.forEach((sol, i) => {
+          const lines = sol.split('\n').map(line => {
+              if (!line.trim()) return '<br>';
+              return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
+          }).join('');
+          solHTML += `<div style="margin-bottom: 20px; padding: 15px; background: #0f0f11; border-radius: 8px;"><strong>Solution ${i+1}</strong><br>${lines}</div>`;
+      });
+      solHTML += `</div>`;
+      finalNotesHTML += solHTML;
+  }
+
+  // Convert Diagram Tags to the Interactive UI
   finalNotesHTML = finalNotesHTML.replace(/\[\[DIAGRAM:\s*(?:\[([\d:]+)\])?\s*(.*?)\]\]/g, (match, timeStr, desc) => {
     let seekButtonHtml = "";
     if (timeStr) {
@@ -665,15 +687,9 @@ async function triggerAINotesChunked() {
 
 // ── Smart Background Extractor with Loop-Back ──
 function runQueueProcessor() {
-    // 1. Find the next waiting video
     let nextId = orderedQueue.find(id => playlistState[id].status === 'waiting');
+    if (nextId) { processVideo(nextId); return; }
     
-    if (nextId) {
-        processVideo(nextId);
-        return;
-    }
-    
-    // 2. If no waiting videos, loop back to skipped ones exactly ONCE
     let skippedQueue = orderedQueue.filter(id => playlistState[id].status === 'skipped');
     if (skippedQueue.length > 0) {
         skippedQueue.forEach(id => playlistState[id].status = 'waiting_retry');
@@ -682,11 +698,8 @@ function runQueueProcessor() {
         return;
     }
     
-    // 3. Process the retries
     let retryId = orderedQueue.find(id => playlistState[id].status === 'waiting_retry');
-    if (retryId) {
-        processVideo(retryId);
-    }
+    if (retryId) { processVideo(retryId); }
 }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -735,7 +748,5 @@ async function processVideo(vid) {
   } else { state.status = 'failed'; }
 
   buildQueueUI(); await sleep(1500);
-  
-  // Continue processing the queue
   runQueueProcessor();
 }

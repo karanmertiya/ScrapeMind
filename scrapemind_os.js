@@ -9,7 +9,7 @@ let autoMuteOverride = false;
 let projectName = "Untitled Project";
 let projectMode = "skillgain"; 
 
-// ── Overhauled, Elite System Instructions ──
+// ── Overhauled, Elite System Instructions (Safely Encoded) ──
 const defaultPrompts = {
   examprep: "You are an elite university professor. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Extract exact formulas, definitions, and core theories from the transcript.\n\nRULE: If the instructor visually references a graph, circuit, or diagram, explicitly write this exact tag: [[DIAGRAM: [MM:SS] Describe what the image shows]]. (Replace MM:SS with the video timestamp).",
   skillgain: "You are a FAANG Senior Engineer conducting a training session. CRITICAL INSTRUCTION: You MUST format your entire response in strict HTML, EXCEPT for code snippets and lists. Use <br><br> before EVERY <h2> and <h3> to prevent clumping. Format code blocks using triple backticks (e.g., \x60\x60\x60python code \x60\x60\x60). For lists, use standard markdown * or 1. at the start of new lines. Focus heavily on algorithms, code logic, and practical application.\n\nRULE: Whenever a core block of code or logic is explained, write: [[DIAGRAM: [MM:SS] Code snippet or architecture diagram being discussed]]. (Replace MM:SS with the video timestamp).",
@@ -39,25 +39,21 @@ async function launchOS(videos) {
 
   const osHTML = `
     <style>
-        .sm-btn-group { display: flex; border-radius: 6px; overflow: hidden; border: 1px solid transparent; }
-        .sm-btn-group .sm-btn { border-radius: 0; margin: 0; border: none; }
-        .sm-btn-group .sm-btn:first-child { border-right: 1px solid rgba(0,0,0,0.3); }
-        .sm-btn-group .sm-btn:last-child { padding: 8px; font-size: 11px; }
-        .sm-btn-group-success { border-color: #30d158; }
-        .sm-btn-group-primary { border-color: #a855f7; }
-        .sm-btn-group-primary .sm-btn:last-child { background: #9333ea; }
-        .sm-btn-group-success .sm-btn:last-child { background: #28b64c; }
-
-        .sm-mode-card { background: #18181b; border: 2px solid #3f3f46; border-radius: 8px; padding: 20px; width: 220px; cursor: pointer; transition: 0.2s; text-align: left; }
-        .sm-mode-card:hover { border-color: #a855f7; transform: translateY(-3px); }
-        .sm-mode-card.selected { border-color: #a855f7; background: rgba(168,85,247,0.1); }
-        .sm-mode-card h3 { color: #a855f7; margin-top: 0; font-size: 18px; margin-bottom: 8px; }
-        .sm-mode-card p { color: #a1a1aa; font-size: 12px; line-height: 1.4; margin-bottom: 0; }
+        /* Interactive Wizard Cards */
+        .sm-mode-card { flex: 1; background: #18181b; border: 2px solid #3f3f46; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s ease; text-align: left; position: relative; overflow: hidden; }
+        .sm-mode-card:hover { border-color: #a855f7; transform: translateY(-4px); box-shadow: 0 8px 20px rgba(168,85,247,0.15); }
+        .sm-mode-card.active-mode { border-color: #a855f7; background: rgba(168,85,247,0.05); }
+        .sm-mode-card.active-mode::before { content: ''; position: absolute; top:0; left:0; width:100%; height:4px; background: linear-gradient(90deg, #a855f7, #ec4899); }
+        .sm-card-icon { font-size: 32px; margin-bottom: 12px; display: block; }
+        .sm-card-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+        .sm-card-desc { font-size: 13px; color: #a1a1aa; line-height: 1.4; }
         
+        /* Tab Enforcer Warning */
         #sm-tab-warning { display: none; background: #ef4444; color: white; text-align: center; padding: 8px; font-weight: bold; font-size: 13px; z-index: 9999; border-bottom: 1px solid #b91c1c; }
     </style>
+    
     <div id="sm-os-root" style="flex-direction: column;">
-      <div id="sm-tab-warning">⚠️ DO NOT SWITCH TABS! YouTube pauses transcript loading if this tab is hidden. Please stay here until extraction finishes.</div>
+      <div id="sm-tab-warning">⚠️ DO NOT SWITCH TABS! YouTube throttles background pages. Please stay on this tab while videos are extracting.</div>
       <div style="display:flex; flex:1; height: 100%; overflow: hidden;">
           <div id="sm-studio">
             <div class="sm-header">
@@ -66,16 +62,16 @@ async function launchOS(videos) {
                 <span id="sm-display-mode" style="background: rgba(168, 85, 247, 0.2); color: #a855f7; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 15px; border: 1px solid #a855f7; display: none;"></span>
                 <label class="sm-toggle-label"><input type="checkbox" id="sm-toggle-time"> Timestamps</label>
                 
-                <div class="sm-btn-group sm-btn-group-success">
-                    <button class="sm-btn sm-btn-success" id="sm-btn-export">🖨️ Export</button>
-                    <button class="sm-btn sm-btn-success" id="sm-btn-export-all" title="Export All to PDF">All</button>
+                <div style="display:flex; border-radius:6px; overflow:hidden; border: 1px solid #30d158;">
+                    <button class="sm-btn" id="sm-btn-export" style="background:#30d158; color:black; border-radius:0; border:none; border-right:1px solid rgba(0,0,0,0.2);">🖨️ Export</button>
+                    <button class="sm-btn" id="sm-btn-export-all" style="background:#28b64c; color:black; border-radius:0; border:none; padding: 8px;" title="Export All">All</button>
                 </div>
 
                 <button class="sm-btn" id="sm-btn-edit" style="background:#f59e0b; border-color:#f59e0b;">✏️ Edit</button>
                 
-                <div class="sm-btn-group sm-btn-group-primary">
-                    <button class="sm-btn sm-btn-primary" id="sm-btn-ai">✨ Generate</button>
-                    <button class="sm-btn sm-btn-primary" id="sm-btn-ai-all" title="Generate notes for the entire Queue">All</button>
+                <div style="display:flex; border-radius:6px; overflow:hidden; border: 1px solid #a855f7;">
+                    <button class="sm-btn" id="sm-btn-ai" style="background:#a855f7; color:white; border-radius:0; border:none; border-right:1px solid rgba(0,0,0,0.2);">✨ Generate</button>
+                    <button class="sm-btn" id="sm-btn-ai-all" style="background:#9333ea; color:white; border-radius:0; border:none; padding: 8px;" title="Generate All">All</button>
                 </div>
 
                 <button class="sm-btn" id="sm-close-os">Exit</button>
@@ -83,29 +79,32 @@ async function launchOS(videos) {
             </div>
             
             <div id="sm-editor" contenteditable="true">
-                <div id="sm-setup-wizard" style="text-align:center; padding-top: 40px; font-family: sans-serif;">
-                    <h2 style="color: #a855f7; font-size: 28px; margin-bottom: 10px;">Initialize Workspace</h2>
-                    <p style="color: #a1a1aa; margin-bottom: 25px;">Define your project parameters for this session.</p>
+                <div id="sm-setup-wizard" style="text-align:center; padding-top: 40px; font-family: sans-serif; max-width: 800px; margin: 0 auto;">
+                    <h2 style="color: #a855f7; font-size: 32px; margin-bottom: 10px;">Initialize Workspace</h2>
+                    <p style="color: #a1a1aa; margin-bottom: 30px;">Define your project scope and cognitive parameters for this session.</p>
                     
-                    <input type="text" id="sm-init-project-name" placeholder="Project Name..." style="padding: 12px; width: 400px; border-radius: 6px; border: 1px solid #3f3f46; background: #0f0f11; color: white; margin-bottom: 15px; font-size: 16px;"><br>
-                    <textarea id="sm-init-syllabus" placeholder="Global Syllabus / Focus Target (Optional. This will be injected into every AI prompt to maintain focus)..." style="padding: 12px; width: 400px; height: 60px; border-radius: 6px; border: 1px solid #3f3f46; background: #0f0f11; color: white; margin-bottom: 25px; font-size: 13px; font-family: sans-serif; resize: none;"></textarea>
+                    <input type="text" id="sm-init-project-name" placeholder="Project Name..." style="padding: 14px; width: 100%; border-radius: 8px; border: 1px solid #3f3f46; background: #0f0f11; color: white; margin-bottom: 15px; font-size: 16px;"><br>
+                    <textarea id="sm-init-syllabus" placeholder="Global Syllabus / Focus Target (Optional. This will be injected into every AI prompt to maintain strict relevance to your exams/goals)..." style="padding: 14px; width: 100%; height: 80px; border-radius: 8px; border: 1px solid #3f3f46; background: #0f0f11; color: white; margin-bottom: 30px; font-size: 14px; font-family: sans-serif; resize: none;"></textarea>
                     
-                    <div style="display:flex; gap:15px; justify-content:center; margin-bottom: 30px;">
-                        <div class="sm-mode-card" data-mode="examprep">
-                            <h3>📚 ExamPrep</h3>
-                            <p>Optimized for high-yield formulas, core theories, and PYQ style questions.</p>
+                    <div style="display:flex; gap:15px; justify-content:center; margin-bottom: 35px;">
+                        <div class="sm-mode-card active-mode" data-mode="skillgain">
+                            <span class="sm-card-icon">🧠</span>
+                            <div class="sm-card-title">SkillGain</div>
+                            <div class="sm-card-desc">Optimized for deep intuition, architectural logic, and technical interview preparation.</div>
                         </div>
-                        <div class="sm-mode-card selected" data-mode="skillgain">
-                            <h3>🧠 SkillGain</h3>
-                            <p>Optimized for deep understanding, code logic, and practical interview questions.</p>
+                        <div class="sm-mode-card" data-mode="examprep">
+                            <span class="sm-card-icon">📚</span>
+                            <div class="sm-card-title">ExamPrep</div>
+                            <div class="sm-card-desc">Extracts high-yield formulas, core theories, and PYQ style patterns for fast revision.</div>
                         </div>
                         <div class="sm-mode-card" data-mode="research">
-                            <h3>🔬 Research</h3>
-                            <p>Optimized for critical literature review, hypotheses, and theoretical edge-cases.</p>
+                            <span class="sm-card-icon">🔬</span>
+                            <div class="sm-card-title">Research</div>
+                            <div class="sm-card-desc">Academic synthesis, critical analysis, methodology breakdowns, and edge-cases.</div>
                         </div>
                     </div>
 
-                    <button id="sm-start-project-btn" style="padding: 14px 32px; background: #a855f7; color: white; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; box-shadow: 0 4px 15px rgba(168,85,247,0.3);">🚀 Launch Engine</button>
+                    <button id="sm-start-project-btn" style="padding: 16px 40px; background: linear-gradient(90deg, #a855f7, #ec4899); color: white; font-weight: 800; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; box-shadow: 0 4px 15px rgba(168,85,247,0.3); transition: 0.2s;">🚀 Launch Processing Engine</button>
                 </div>
             </div>
             
@@ -126,7 +125,7 @@ async function launchOS(videos) {
                   </div>
                   <div style="display:flex; gap:10px;">
                     <div class="sm-form-group" style="flex:1"><label>Groq API Key 1</label><input type="password" id="setting-groq" class="sm-input" placeholder="gsk_..."></div>
-                    <div class="sm-form-group" style="flex:1"><label>Groq API Key 2 (Round Robin Fallback)</label><input type="password" id="setting-groq2" class="sm-input" placeholder="gsk_..."></div>
+                    <div class="sm-form-group" style="flex:1"><label>Groq API Key 2 (Round Robin)</label><input type="password" id="setting-groq2" class="sm-input" placeholder="gsk_..."></div>
                   </div>
                   <div style="display:flex; gap:10px;">
                     <div class="sm-form-group" style="flex:1"><label>Cloudflare Account ID</label><input type="password" id="setting-cf-acc" class="sm-input" placeholder="For AI Images..."></div>
@@ -172,31 +171,36 @@ async function launchOS(videos) {
   document.body.insertAdjacentHTML('beforeend', osHTML);
   document.body.style.overflow = 'hidden';
 
-  // ── Project Initialization Logic ──
+  // ── Project Initialization Logic (Bullet-Proofed) ──
   let selectedMode = 'skillgain';
   document.querySelectorAll('.sm-mode-card').forEach(card => {
       card.onclick = () => {
-          document.querySelectorAll('.sm-mode-card').forEach(c => c.classList.remove('selected'));
-          card.classList.add('selected');
+          document.querySelectorAll('.sm-mode-card').forEach(c => c.classList.remove('active-mode'));
+          card.classList.add('active-mode');
           selectedMode = card.getAttribute('data-mode');
       };
   });
 
   document.getElementById('sm-start-project-btn').onclick = () => {
-      projectName = document.getElementById('sm-init-project-name').value.trim() || "Untitled Project";
-      projectMode = selectedMode;
-      settings.syllabus = document.getElementById('sm-init-syllabus').value.trim();
-      
-      const displayMode = document.getElementById('sm-display-mode');
-      displayMode.style.display = 'inline-block';
-      displayMode.innerText = projectMode.toUpperCase() + ' MODE';
+      try {
+          const inputName = document.getElementById('sm-init-project-name').value.trim();
+          projectName = inputName || "Untitled Project";
+          projectMode = selectedMode;
+          settings.syllabus = document.getElementById('sm-init-syllabus').value.trim();
+          
+          const displayMode = document.getElementById('sm-display-mode');
+          displayMode.style.display = 'inline-block';
+          displayMode.innerText = projectMode.toUpperCase() + ' MODE';
 
-      document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
-      document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
-      
-      fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
-      buildQueueUI(); 
-      runQueueProcessor();
+          document.getElementById('sm-project-title').innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
+          document.getElementById('sm-editor').innerHTML = "Project initialized. Select a video from the queue to begin.";
+          
+          fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
+          buildQueueUI(); 
+          runQueueProcessor();
+      } catch (err) {
+          alert("Initialization Error: " + err.message);
+      }
   };
 
   // ── Tab Focus Enforcer ──
@@ -236,6 +240,14 @@ async function launchOS(videos) {
   // ── Event Delegation for Editor ──
   editorNode.addEventListener('click', (e) => {
     const target = e.target;
+
+    if (target.classList.contains('sm-blurred-line')) {
+        target.style.filter = 'none';
+        target.style.cursor = 'text';
+        target.classList.remove('sm-blurred-line');
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
+        return;
+    }
 
     if (!target.classList.contains('sm-diagram-btn')) return;
 
@@ -573,6 +585,14 @@ function buildQueueUI() {
 function formatLLMOutput(rawText) {
     let cleanText = rawText;
 
+    cleanText = cleanText.replace(/\[\[SOLUTION_START\]\]([\s\S]*?)\[\[SOLUTION_END\]\]/g, (match, content) => {
+        const lines = content.trim().split('\n').map(line => {
+            if (!line.trim()) return '<br>';
+            return `<div class="sm-blurred-line" style="filter: blur(6px); cursor: pointer; user-select: none; margin-bottom: 4px; display: inline-block;">${line}</div><br>`;
+        }).join('');
+        return `<div style="margin-top: 20px; padding: 15px; border: 1px solid #3f3f46; border-radius: 8px; background: #0f0f11;"><strong style="color:#30d158; margin-bottom: 10px; display: block;">🔍 Practice Solutions (Click line to reveal)</strong>${lines}</div>`;
+    });
+
     cleanText = cleanText.replace(/\x60\x60\x60(\w+)?\n([\s\S]*?)\x60\x60\x60/g, (match, lang, code) => {
         return `<pre class="sourceCode ${lang || ''}" style="background:#0f0f11; padding:15px; border-radius:6px; border:1px solid #3f3f46; color:#a855f7; overflow-x:auto; margin: 15px 0; font-family: monospace;"><code>${code}</code></pre>`;
     });
@@ -776,10 +796,16 @@ async function processVideo(vid) {
   state.status = 'extracting'; buildQueueUI(); 
 
   if (!window.location.href.includes(vid)) {
+    let navAttempts = 0;
     const links = Array.from(document.querySelectorAll(`a[href*="${vid}"]`));
     const visibleLink = links.find(a => a.offsetParent !== null);
     if (visibleLink) visibleLink.click();
     else if (document.querySelector('.ytp-next-button')) document.querySelector('.ytp-next-button').click();
+    
+    while (!window.location.href.includes(vid) && navAttempts < 10) {
+        await sleep(500);
+        navAttempts++;
+    }
   }
 
   await sleep(3000); 

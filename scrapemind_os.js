@@ -31,7 +31,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.action === 'LAUNCH_OS' && !isRunning) { isRunning = true; launchOS(msg.videos); }
 });
 
-// ── Bulletproof DOM Helpers (Prevents Null Crashes) ──
+// ── Bulletproof DOM Helpers ──
 function safeBind(id, event, handler) { const el = document.getElementById(id); if (el) el.addEventListener(event, handler); }
 function safeSet(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
 function safeGet(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
@@ -44,7 +44,6 @@ async function launchOS(videos) {
 
   const osHTML = `
     <style>
-        /* 3-Card Wizard Styles */
         .sm-mode-card { flex: 1; background: #18181b; border: 2px solid #3f3f46; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.3s ease; text-align: left; position: relative; overflow: hidden; }
         .sm-mode-card:hover { border-color: #a855f7; transform: translateY(-4px); box-shadow: 0 8px 20px rgba(168,85,247,0.15); }
         .sm-mode-card.active-mode { border-color: #a855f7; background: rgba(168,85,247,0.05); }
@@ -187,28 +186,32 @@ async function launchOS(videos) {
   });
 
   safeBind('sm-start-project-btn', 'click', () => {
-      projectName = safeGet('sm-init-project-name') || "Untitled Project";
-      projectMode = selectedMode;
-      settings.syllabus = safeGet('sm-init-syllabus');
-      
-      const displayMode = document.getElementById('sm-display-mode');
-      if (displayMode) {
-          displayMode.style.display = 'inline-block';
-          displayMode.innerText = projectMode.toUpperCase() + ' MODE';
-      }
+      try {
+          projectName = safeGet('sm-init-project-name') || "Untitled Project";
+          projectMode = selectedMode;
+          settings.syllabus = safeGet('sm-init-syllabus');
+          
+          const displayMode = document.getElementById('sm-display-mode');
+          if (displayMode) {
+              displayMode.style.display = 'inline-block';
+              displayMode.innerText = projectMode.toUpperCase() + ' MODE';
+          }
 
-      const projTitle = document.getElementById('sm-project-title');
-      if (projTitle) projTitle.innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
-      
-      const ed = document.getElementById('sm-editor');
-      if (ed) ed.innerHTML = "Project initialized. Select a video from the queue to begin.";
-      
-      fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
-      buildQueueUI(); 
-      runQueueProcessor();
+          const projTitle = document.getElementById('sm-project-title');
+          if (projTitle) projTitle.innerHTML = `${projectName} <input type="text" id="sm-oracle-search" class="sm-search" placeholder="🔍 Search Oracle...">`;
+          
+          const ed = document.getElementById('sm-editor');
+          if (ed) ed.innerHTML = "Project initialized. Select a video from the queue to begin.";
+          
+          fetch('https://scrapemind-yj4c.onrender.com/').catch(e => console.log("Pinged Render Server"));
+          buildQueueUI(); 
+          runQueueProcessor();
+      } catch (err) {
+          alert("Initialization Error: " + err.message);
+      }
   });
 
-  // ── Tab Focus Enforcer Logic ──
+  // ── Tab Focus Enforcer ──
   setInterval(() => {
       const isExtracting = orderedQueue.some(id => playlistState[id].status === 'extracting');
       const warningEl = document.getElementById('sm-tab-warning');
@@ -253,11 +256,21 @@ async function launchOS(videos) {
       editorNode.addEventListener('click', (e) => {
         const target = e.target;
 
+        if (target.classList.contains('sm-blurred-line')) {
+            target.style.filter = 'none';
+            target.style.cursor = 'text';
+            target.classList.remove('sm-blurred-line');
+            if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
+            return;
+        }
+
         if (!target.classList.contains('sm-diagram-btn')) return;
 
         const wrapper = target.closest('.sm-diagram-wrapper');
+        if (!wrapper) return;
         const gallery = wrapper.querySelector('.sm-diagram-gallery');
-        const desc = wrapper.querySelector('.sm-diagram-desc').getAttribute('data-desc');
+        const descEl = wrapper.querySelector('.sm-diagram-desc');
+        const desc = descEl ? descEl.getAttribute('data-desc') : "";
 
         if (target.classList.contains('sm-action-seek')) {
             const time = target.getAttribute('data-time');
@@ -270,19 +283,21 @@ async function launchOS(videos) {
         }
         else if (target.classList.contains('sm-action-upload')) {
             const fileInput = wrapper.querySelector('.sm-file-upload');
-            fileInput.click();
-            fileInput.onchange = (ev) => {
-                const file = ev.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (readerEvent) => {
-                        const img = document.createElement('img');
-                        img.src = readerEvent.target.result;
-                        gallery.appendChild(img);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
+            if (fileInput) {
+                fileInput.click();
+                fileInput.onchange = (ev) => {
+                    const file = ev.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (readerEvent) => {
+                            const img = document.createElement('img');
+                            img.src = readerEvent.target.result;
+                            gallery.appendChild(img);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+            }
         }
         else if (target.classList.contains('sm-action-generate')) {
             const defaultStylePrompt = `A clean, technical educational diagram showing: ${desc}. Minimalist flat vector style, computer science schematic, white background, no text.`;
@@ -329,7 +344,7 @@ async function launchOS(videos) {
             wrapper.remove();
         }
 
-        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = editorNode.innerHTML;
+        if(currentViewedVideo) playlistState[currentViewedVideo].userEdits = document.getElementById('sm-editor').innerHTML;
       });
   }
 
@@ -379,6 +394,7 @@ async function launchOS(videos) {
       btn.disabled = true;
 
       for (const vid of orderedQueue) {
+          if (!isRunning) break;
           if (playlistState[vid].status === 'done' && !playlistState[vid].userEdits) {
               currentViewedVideo = vid; 
               renderWorkspace(vid);
@@ -387,8 +403,10 @@ async function launchOS(videos) {
           }
       }
 
-      btn.innerText = originalText;
-      btn.disabled = false;
+      if(btn) {
+          btn.innerText = originalText;
+          btn.disabled = false;
+      }
       alert("Finished generating notes for all processed videos in the queue!");
   });
 
@@ -416,6 +434,7 @@ async function launchOS(videos) {
 
   // ── Single Export ──
   safeBind('sm-btn-export', 'click', async () => {
+    if (!editorNode) return;
     const cloneEditor = editorNode.cloneNode(true);
     cleanupForPDF(cloneEditor);
 
@@ -445,6 +464,7 @@ async function launchOS(videos) {
   });
 
   async function exportPDFPayload(htmlContent, btnElement) {
+      if (!btnElement) return;
       const originalText = btnElement.innerText;
       btnElement.innerText = "⏳ Compiling...";
       btnElement.disabled = true;
@@ -632,6 +652,7 @@ async function triggerAINotesChunked() {
 
   const mode = projectMode; 
   const editor = document.getElementById('sm-editor');
+  if (!editor) return; // Strict NULL safety check
   const originalHTML = editor.innerHTML;
   
   const state = playlistState[currentViewedVideo];
@@ -645,6 +666,7 @@ async function triggerAINotesChunked() {
 
   let customInstruction = "";
   try {
+      if (!isRunning) return;
       const sampleTranscript = segments.slice(0, 40).map(t => t.text).join(' ');
       let commentContext = "";
       if (state.comments && state.comments.length > 0) {
@@ -676,7 +698,7 @@ async function triggerAINotesChunked() {
       </blockquote>`;
   }
   
-  editor.innerHTML = `<h3>🤖 Segmenting video into ${chunks.length} parts...</h3>`;
+  if (editor) editor.innerHTML = `<h3>🤖 Segmenting video into ${chunks.length} parts...</h3>`;
 
   let basePrompt = settings.prompts[mode];
   if (customInstruction) basePrompt += `\n\nCRITICAL CONTEXT FOR THIS VIDEO:\n${customInstruction}`;
@@ -686,7 +708,8 @@ async function triggerAINotesChunked() {
   let extractedSolutions = [];
 
   for (let c = 0; c < chunks.length; c++) {
-    editor.innerHTML += `<p>⏳ Analyzing Part ${c + 1} of ${chunks.length}...</p>`;
+    if (!isRunning) return;
+    if (editor) editor.innerHTML += `<p>⏳ Analyzing Part ${c + 1} of ${chunks.length}...</p>`;
     
     const isLastChunk = (c === chunks.length - 1);
     const chunkText = chunks[c].map(t => t.text).join(' ');
@@ -703,6 +726,7 @@ async function triggerAINotesChunked() {
       if (settings.llmProvider === 'groq') {
           let retries = 3;
           while (retries > 0) {
+              if (!isRunning) return;
               const currentKey = groqKeys[activeKeyIndex % groqKeys.length];
               const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: "POST", headers: { "Authorization": `Bearer ${currentKey}`, "Content-Type": "application/json" },
@@ -738,8 +762,8 @@ async function triggerAINotesChunked() {
       finalNotesHTML += formatLLMOutput(aiResponse) + "<br><br>";
 
     } catch (e) {
-      editor.innerHTML = `<h3 style="color:red">❌ Failed on Part ${c + 1}: ${e.message}</h3>`;
-      setTimeout(() => { editor.innerHTML = originalHTML; }, 4000);
+      if (editor) editor.innerHTML = `<h3 style="color:red">❌ Failed on Part ${c + 1}: ${e.message}</h3>`;
+      setTimeout(() => { if (editor) editor.innerHTML = originalHTML; }, 4000);
       return;
     }
   }
@@ -783,15 +807,14 @@ async function triggerAINotesChunked() {
   });
   
   playlistState[currentViewedVideo].userEdits = finalNotesHTML; 
-  editor.innerHTML = finalNotesHTML;
+  if (editor) editor.innerHTML = finalNotesHTML;
 }
 
-// ── Smart Background Extractor with Loop-Back & Comment Scraping ──
 function runQueueProcessor() {
+    if (!isRunning) return;
     let nextId = orderedQueue.find(id => playlistState[id].status === 'waiting');
     if (nextId) { processVideo(nextId); return; }
     
-    // Automatically retry skipped or failed videos exactly once
     let retryQueue = orderedQueue.filter(id => playlistState[id].status === 'skipped' || playlistState[id].status === 'failed');
     if (retryQueue.length > 0) {
         retryQueue.forEach(id => playlistState[id].status = 'waiting_retry');
@@ -806,6 +829,7 @@ function runQueueProcessor() {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function processVideo(vid) {
+  if (!isRunning) return;
   const state = playlistState[vid];
 
   state.status = 'extracting'; buildQueueUI(); 
@@ -818,25 +842,26 @@ async function processVideo(vid) {
     else if (document.querySelector('.ytp-next-button')) document.querySelector('.ytp-next-button').click();
     
     while (!window.location.href.includes(vid) && navAttempts < 10) {
+        if (!isRunning) return;
         await sleep(500);
         navAttempts++;
     }
   }
 
+  if (!isRunning) return;
   await sleep(3000); 
   state.title = document.title.replace(' - YouTube', ''); 
   
-  // ── Scrape Top YouTube Comments ──
   window.scrollBy(0, 800); 
   await sleep(2000);
   window.scrollBy(0, 800); 
   await sleep(1000);
+  if (!isRunning) return;
   const commentEls = document.querySelectorAll('ytd-comment-thread-renderer #content-text');
   if (commentEls.length > 0) {
       state.comments = Array.from(commentEls).slice(0, 3).map(el => el.textContent.trim());
   }
 
-  // ── Scrape Transcript ──
   const expandBtn = document.querySelector('tp-yt-paper-button#expand') || document.querySelector('ytd-text-inline-expander button');
   if (expandBtn) expandBtn.click();
   
@@ -848,6 +873,7 @@ async function processVideo(vid) {
     transcriptBtn.click();
     let attempts = 0;
     while(attempts < 10) {
+      if (!isRunning) return;
       await sleep(500);
       const segments = document.querySelectorAll('ytd-transcript-segment-renderer');
       if (segments.length > 0) {
@@ -870,6 +896,8 @@ async function processVideo(vid) {
       state.status = (state.status === 'waiting_retry') ? 'hard_skipped' : 'failed'; 
   }
 
-  buildQueueUI(); await sleep(1500);
+  buildQueueUI(); 
+  if (!isRunning) return;
+  await sleep(1500);
   runQueueProcessor();
 }

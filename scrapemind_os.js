@@ -36,6 +36,41 @@ function safeBind(id, event, handler) { const el = document.getElementById(id); 
 function safeSet(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
 function safeGet(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
 
+// ── Smart Pause & Resume Logic for Extraction ──
+async function checkVisibility() {
+    if (!document.hidden) return;
+    
+    // If hidden, wait for the user to return before continuing execution
+    return new Promise(resolve => {
+        const onVisChange = () => {
+            if (!document.hidden) {
+                document.removeEventListener("visibilitychange", onVisChange);
+                showReturnWarning(); // Flash the banner when they come back
+                resolve();
+            }
+        };
+        document.addEventListener("visibilitychange", onVisChange);
+    });
+}
+
+function showReturnWarning() {
+    const warningEl = document.getElementById('sm-tab-warning');
+    if (warningEl) {
+        warningEl.classList.add('show');
+        setTimeout(() => {
+            warningEl.classList.remove('show');
+        }, 5000); // Hide after 5 seconds
+    }
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function smartWait(ms) {
+    await checkVisibility();
+    await sleep(ms);
+    await checkVisibility();
+}
+
 async function launchOS(videos) {
   videos.forEach(v => {
     playlistState[v.id] = { id: v.id, title: v.title, status: 'waiting', transcript: [], comments: [], userEdits: "" };
@@ -51,12 +86,21 @@ async function launchOS(videos) {
         .sm-card-icon { font-size: 32px; margin-bottom: 12px; display: block; }
         .sm-card-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 8px; }
         .sm-card-desc { font-size: 13px; color: #a1a1aa; line-height: 1.4; }
+        
+        /* Animated Drop-Down Toast Notification */
+        #sm-tab-warning { 
+            position: fixed; top: 0; left: 0; width: 100%; 
+            background: #ef4444; color: white; text-align: center; 
+            padding: 12px; font-weight: bold; font-size: 14px; 
+            z-index: 999999; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transform: translateY(-100%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #sm-tab-warning.show { transform: translateY(0); }
     </style>
     
     <div id="sm-os-root" style="flex-direction: column;">
-      <div id="sm-tab-warning" style="display: none; width: 100%; background: #ef4444; color: white; text-align: center; padding: 12px; font-weight: bold; font-size: 14px; z-index: 9999; border-bottom: 2px solid #b91c1c; text-transform: uppercase; letter-spacing: 1px;">
-          ⚠️ Extraction Warning: YouTube throttles background tabs. Keep this tab open and visible until the queue finishes extracting!
-      </div>
+      
+      <div id="sm-tab-warning">⚠️ Scraping Resumed! YouTube requires you to stay on this tab to load data.</div>
       
       <div style="display:flex; flex:1; height: 100%; overflow: hidden;">
           <div id="sm-studio">
@@ -211,18 +255,15 @@ async function launchOS(videos) {
       }
   });
 
-  // ── Tab Focus Enforcer ──
-  setInterval(() => {
+  // Page Title Updates based on visibility
+  document.addEventListener("visibilitychange", () => {
       const isExtracting = orderedQueue.some(id => playlistState[id].status === 'extracting');
-      const warningEl = document.getElementById('sm-tab-warning');
-      if (isExtracting) {
-          if (document.hidden) { document.title = "⚠️ PAUSED - Return to Tab!"; } else { document.title = "ScrapeMind OS"; }
-          if (warningEl) warningEl.style.display = 'block';
+      if (document.hidden && isExtracting) {
+          document.title = "⚠️ PAUSED - Return to Tab!";
       } else {
           document.title = "ScrapeMind OS";
-          if (warningEl) warningEl.style.display = 'none';
       }
-  }, 1000);
+  });
 
   engineInterval = setInterval(() => {
     const v = document.querySelector('video');
@@ -652,7 +693,7 @@ async function triggerAINotesChunked() {
 
   const mode = projectMode; 
   const editor = document.getElementById('sm-editor');
-  if (!editor) return; // Strict NULL safety check
+  if (!editor) return; 
   const originalHTML = editor.innerHTML;
   
   const state = playlistState[currentViewedVideo];
@@ -843,19 +884,19 @@ async function processVideo(vid) {
     
     while (!window.location.href.includes(vid) && navAttempts < 10) {
         if (!isRunning) return;
-        await sleep(500);
+        await smartWait(500);
         navAttempts++;
     }
   }
 
   if (!isRunning) return;
-  await sleep(3000); 
+  await smartWait(3000); 
   state.title = document.title.replace(' - YouTube', ''); 
   
   window.scrollBy(0, 800); 
-  await sleep(2000);
+  await smartWait(2000);
   window.scrollBy(0, 800); 
-  await sleep(1000);
+  await smartWait(1000);
   if (!isRunning) return;
   const commentEls = document.querySelectorAll('ytd-comment-thread-renderer #content-text');
   if (commentEls.length > 0) {
@@ -865,7 +906,7 @@ async function processVideo(vid) {
   const expandBtn = document.querySelector('tp-yt-paper-button#expand') || document.querySelector('ytd-text-inline-expander button');
   if (expandBtn) expandBtn.click();
   
-  await sleep(1000);
+  await smartWait(1000);
   const tBtns = Array.from(document.querySelectorAll('button'));
   const transcriptBtn = tBtns.find(b => b.textContent?.trim().toLowerCase() === 'show transcript' || b.getAttribute('aria-label') === 'Show transcript');
 
@@ -874,7 +915,7 @@ async function processVideo(vid) {
     let attempts = 0;
     while(attempts < 10) {
       if (!isRunning) return;
-      await sleep(500);
+      await smartWait(500);
       const segments = document.querySelectorAll('ytd-transcript-segment-renderer');
       if (segments.length > 0) {
         const parsedData = [];
@@ -898,6 +939,6 @@ async function processVideo(vid) {
 
   buildQueueUI(); 
   if (!isRunning) return;
-  await sleep(1500);
+  await smartWait(1500);
   runQueueProcessor();
 }
